@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
@@ -36,8 +35,24 @@ scene.background = BG;
 const camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.08, 1200);
 scene.add(camera);
 const pmrem = new THREE.PMREMGenerator(renderer);
-scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-scene.environmentIntensity = 0.5;
+// soft "mall interior" environment for reflections: warm grey hall with rows of ceiling panels
+function makeEnvScene() {
+  const s = new THREE.Scene();
+  const room = new THREE.Mesh(new THREE.BoxGeometry(80, 24, 80), new THREE.MeshBasicMaterial({ color: 0x8c877e, side: THREE.BackSide }));
+  room.position.y = 9; s.add(room);
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshBasicMaterial({ color: 0x57524a }));
+  floor.rotation.x = -Math.PI / 2; floor.position.y = -2.9; s.add(floor);
+  const lm = new THREE.MeshBasicMaterial({ color: new THREE.Color(3.2, 3.1, 2.9) });
+  for (let i = -3; i <= 3; i++) for (let j = -3; j <= 3; j++) {
+    const p = new THREE.Mesh(new THREE.PlaneGeometry(2.5, 2.5), lm);
+    p.rotation.x = Math.PI / 2; p.position.set(i * 10, 20.9, j * 10); s.add(p);
+  }
+  const sky = new THREE.Mesh(new THREE.PlaneGeometry(20, 80), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 1.8, 2.1) }));
+  sky.rotation.x = Math.PI / 2; sky.position.set(0, 20.8, 0); s.add(sky);
+  return s;
+}
+scene.environment = pmrem.fromScene(makeEnvScene(), 0.03).texture;
+scene.environmentIntensity = 0.9;
 const hemi = new THREE.HemisphereLight(0xfff4e6, 0x7a6e60, 1.05);
 scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff1dd, 0.0);
@@ -55,7 +70,7 @@ let composer = null, bloomOn = !isTouch;
 function setupComposer() {
   composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
-  const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth / 2, window.innerHeight / 2), 0.45, 0.45, 1.5);
+  const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth / 2, window.innerHeight / 2), 0.35, 0.4, 1.5);
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
 }
@@ -66,28 +81,51 @@ const input = { forward: 0, strafe: 0, sprint: false, jump: false, up: 0, down: 
 const keys = new Set();
 let running = false, paused = true, elevatorOpen = false, nearElevator = null, showPerf = false;
 
+let ground = null;
 async function boot() {
-  setLoading('Generating floor plan…');
-  await nextFrame();
-  const t0 = performance.now();
-  mall = generateMall(seed);
   setLoading('Painting textures & materials…');
   await nextFrame();
   mats = makeMaterials(isTouch);
+  // the parking lot / plaza around the building (seen from entrances and drone mode)
+  const gt = mats._tex.garage.clone();
+  const size = 2400;
+  gt.repeat.set(size / 8, size / 8); gt.needsUpdate = true;
+  ground = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshStandardMaterial({ map: gt, color: 0x8a8a88, roughness: 0.95 }));
+  ground.rotation.x = -Math.PI / 2;
+  scene.add(ground);
+  setupComposer();
+  await buildMall(seed);
+  window.__THREE = THREE;
+  window.__mall = { get mall() { return mall; }, get world() { return world; }, get player() { return player; }, camera, renderer, scene, render: renderOnce, get hud() { return hud; }, mats, setBloom: (b) => { bloomOn = b; } };
+  if (params.has('shot')) window.__noloop = true;
+  running = true;
+  requestAnimationFrame(loop);
+}
+
+async function buildMall(newSeed) {
+  seed = newSeed;
+  try { history.replaceState(null, '', `?seed=${seed}`); } catch (e) { /* sandboxed */ }
+  $('loading').style.display = 'flex';
+  setLoading(`Generating mall #${seed} — floor plan…`);
+  await nextFrame();
+  const t0 = performance.now();
+  mall = generateMall(seed);
   setLoading('Drawing the mall directory…');
   await nextFrame();
   const imgs = renderLevelImages(mall);
+  if (world) world.dispose();
   world = new World(mall, mats, scene);
+  ground.position.set((mall.W * CELL) / 2, -0.12, (mall.H * CELL) / 2);
   world.setRadius(isTouch ? 4 : 6);
-  player = new Player(camera, world);
+  if (!player) player = new Player(camera, world); else player.world = world;
+  player.fly = false;
   player.spawn(mall.spawn);
-  // face down the longest open direction from spawn
   player.yaw = bestYaw(mall.spawn);
-  hud = new HUD(mall, imgs, (x, y, z) => { player.teleport(x, y, z); toggleMap(false); });
+  if (!hud) hud = new HUD(mall, imgs, (x, y, z) => { player.teleport(x, y, z); toggleMap(false); });
+  else hud.setMall(mall, imgs);
   setLoading('Building the area around you…');
   await nextFrame();
   world.update(player.pos.x, player.pos.z, player.level, 2500);
-  setupComposer();
   // start screen stats
   const s = mall.stats;
   $('stats').innerHTML = [
@@ -102,11 +140,6 @@ async function boot() {
   $('loading').style.display = 'none';
   $('start').style.display = 'flex';
   console.log(`Mall generated in ${(performance.now() - t0).toFixed(0)}ms`, s);
-  window.__THREE = THREE;
-  window.__mall = { mall, world, player, camera, renderer, scene, render: renderOnce, hud, mats, setBloom: (b) => { bloomOn = b; } };
-  if (params.has('shot')) window.__noloop = true;
-  running = true;
-  requestAnimationFrame(loop);
 }
 
 function bestYaw(sp) {
@@ -121,28 +154,45 @@ function bestYaw(sp) {
 
 // ------------------------------------------------------------------ input
 const canvas = renderer.domElement;
+// Pointer lock can be unavailable (e.g. inside an embedded/sandboxed page): fall back to drag-to-look
+let dragLook = false, dragging = false;
+function enableDragLook() {
+  if (dragLook) return;
+  dragLook = true;
+  flash('Mouse look: click and drag to look around');
+}
+function lockPointer() {
+  if (isTouch || dragLook) return;
+  try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => enableDragLook()); } catch (e) { enableDragLook(); }
+}
+document.addEventListener('pointerlockerror', enableDragLook);
 function start() {
   $('start').style.display = 'none';
   $('hud').style.display = 'block';
   paused = false;
-  if (!isTouch) canvas.requestPointerLock();
+  if (!isTouch) lockPointer();
   else $('touch').style.display = 'block';
 }
 $('enter').onclick = start;
-$('reseed').onclick = () => { const v = parseInt($('seed').value, 10); location.search = `?seed=${Number.isFinite(v) ? v : Math.floor(Math.random() * 1e6)}`; };
-$('random').onclick = () => { location.search = `?seed=${Math.floor(Math.random() * 1e6)}`; };
-canvas.addEventListener('click', () => { if (!paused && !isTouch && document.pointerLockElement !== canvas && !hud.mapOpen && !elevatorOpen) canvas.requestPointerLock(); });
+const regen = async (v) => { $('start').style.display = 'none'; await buildMall(v); };
+$('reseed').onclick = () => { const v = parseInt($('seed').value, 10); regen(Number.isFinite(v) ? v : Math.floor(Math.random() * 1e6)); };
+$('random').onclick = () => regen(Math.floor(Math.random() * 1e6));
+canvas.addEventListener('click', () => { if (!paused && !isTouch && !dragLook && document.pointerLockElement !== canvas && !hud.mapOpen && !elevatorOpen) lockPointer(); });
+canvas.addEventListener('mousedown', () => { dragging = true; });
+window.addEventListener('mouseup', () => { dragging = false; });
 document.addEventListener('pointerlockchange', () => {
-  if (document.pointerLockElement !== canvas && !paused && !hud.mapOpen && !elevatorOpen && !isTouch) { paused = true; $('pause').style.display = 'flex'; }
+  if (document.pointerLockElement !== canvas && !paused && !hud.mapOpen && !elevatorOpen && !isTouch && !dragLook) { paused = true; $('pause').style.display = 'flex'; }
 });
-$('resume').onclick = () => { $('pause').style.display = 'none'; paused = false; canvas.requestPointerLock(); };
+$('resume').onclick = () => { $('pause').style.display = 'none'; paused = false; lockPointer(); };
 document.addEventListener('mousemove', (e) => {
   if (document.pointerLockElement === canvas) { input.lookX += e.movementX * 0.0022; input.lookY += e.movementY * 0.0022; }
+  else if (dragLook && dragging && !paused && !hud.mapOpen && !elevatorOpen) { input.lookX += e.movementX * 0.004; input.lookY += e.movementY * 0.004; }
 });
 window.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT') return;
   keys.add(e.code);
-  if (e.code === 'KeyM' || (e.code === 'Escape' && hud && hud.mapOpen)) { toggleMap(); e.preventDefault(); }
+  if (e.code === 'KeyM' || (e.code === 'Escape' && hud && hud.mapOpen)) { toggleMap(); e.preventDefault(); return; }
+  if (e.code === 'Escape' && dragLook && !paused && !elevatorOpen) { paused = true; $('pause').style.display = 'flex'; }
   if (e.code === 'KeyG' && player) { player.fly = !player.fly; flash(player.fly ? 'Drone mode ON — fly freely (Space/C up/down)' : 'Drone mode OFF'); }
   if (e.code === 'KeyF') { flashlight.intensity = flashlight.intensity ? 0 : 60; }
   if (e.code === 'KeyB') { bloomOn = !bloomOn; flash(`Bloom ${bloomOn ? 'on' : 'off'}`); }
@@ -168,7 +218,7 @@ function toggleMap(force) {
   const open = force === undefined ? !hud.mapOpen : force;
   hud.openMap(open, player);
   if (open) { if (document.pointerLockElement) document.exitPointerLock(); }
-  else if (!isTouch && !paused) canvas.requestPointerLock();
+  else if (!isTouch && !paused) lockPointer();
 }
 let flashT = 0;
 function flash(t) { $('flash').textContent = t; $('flash').style.opacity = 1; flashT = 2.2; }
@@ -206,7 +256,7 @@ function pickFloor(l) {
 }
 function closeElevator() {
   elevatorOpen = false; $('elevator').style.display = 'none';
-  if (!isTouch && !paused) canvas.requestPointerLock();
+  if (!isTouch && !paused) lockPointer();
 }
 $('elevator-close').onclick = closeElevator;
 
@@ -278,13 +328,14 @@ function loop() {
   ambient += (target - ambient) * Math.min(1, dt * 2.5);
   hemi.intensity = 1.05 * ambient;
   
-  scene.environmentIntensity = 0.5 * (0.4 + 0.6 * ambient);
+  scene.environmentIntensity = 0.9 * (0.4 + 0.6 * ambient);
   fogTarget.set(lvl < 0 ? 0x1e2024 : 0xb9b2a6).multiplyScalar(lvl < 0 ? 1 : 0.55 + 0.45 * ambient);
   fogCol.copy(fog.color).lerp(fogTarget, Math.min(1, dt * 2));
   fog.color.copy(fogCol);
   const range = world.radius * CHUNK * CELL;
   fog.far = lvl < 0 ? Math.min(140, range) : range * 0.95;
   fog.near = lvl < 0 ? 15 : 60;
+  mats.outdoor.visible = player.pos.y < 19;
   // elevator proximity
   nearElevator = null;
   if (lvl >= 0) for (const ev of mall.elevators) if (Math.hypot(ev.x - player.pos.x, ev.z - player.pos.z) < 3.2) nearElevator = ev;

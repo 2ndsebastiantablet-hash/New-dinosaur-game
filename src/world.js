@@ -34,6 +34,10 @@ export class World {
     }
     this.stats = { chunks: 0, verts: 0 };
   }
+  dispose() {
+    for (const k of [...this.loaded.keys()]) this.unload(k);
+    this.scene.remove(this.root);
+  }
   setRadius(r) { this.radius = r; this.detailRadius = Math.max(2, Math.round(r * 0.5)); this.lastKey = ''; }
   radiiFor(l, pl) {
     const d = Math.abs(l - pl);

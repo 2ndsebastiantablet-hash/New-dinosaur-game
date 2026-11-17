@@ -127,14 +127,15 @@ export function buildStructure(S, l, ccx, ccz) {
         gb.boxA(mats.metal, wx, sy - 0.25, wz - 0.06, wx + CELL, sy, wz + 0.06, [0.85, 0.85, 0.88]);
         gb.boxA(mats.metal, wx - 0.06, sy - 0.25, wz, wx + 0.06, sy, wz + CELL, [0.85, 0.85, 0.88]);
         gb.boxA(mats.metal, wx + 1.94, sy - 0.12, wz, wx + 2.06, sy, wz + CELL, [0.85, 0.85, 0.88]);
-        // clerestory walls where void meets roof
+        gb.floor(mats.glass, wx, wz, wx + CELL, wz + CELL, sy + 0.05, [0.7, 0.85, 0.95]);
+        // clerestory walls where void meets roof (inner + outer faces)
         for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
           if (mall.isVoid(l, x + dx, z + dz) && mall.roomId(l, x + dx, z + dz) >= 0) continue;
-          const st = [0.95, 0.95, 0.95];
-          if (dx === 1) gb.wallX(mats.plaster, wz, wz + CELL, wx + CELL, Y + CEIL, sy, -1, st);
-          if (dx === -1) gb.wallX(mats.plaster, wz, wz + CELL, wx, Y + CEIL, sy, 1, st);
-          if (dz === 1) gb.wallZ(mats.plaster, wx, wx + CELL, wz + CELL, Y + CEIL, sy, -1, st);
-          if (dz === -1) gb.wallZ(mats.plaster, wx, wx + CELL, wz, Y + CEIL, sy, 1, st);
+          const st = [0.95, 0.95, 0.95], so = [0.8, 0.8, 0.78];
+          if (dx === 1) { gb.wallX(mats.plaster, wz, wz + CELL, wx + CELL, Y + CEIL, sy, -1, st); gb.wallX(mats.stone, wz, wz + CELL, wx + CELL + 0.02, Y + LEVEL_H, sy + 0.1, 1, so); }
+          if (dx === -1) { gb.wallX(mats.plaster, wz, wz + CELL, wx, Y + CEIL, sy, 1, st); gb.wallX(mats.stone, wz, wz + CELL, wx - 0.02, Y + LEVEL_H, sy + 0.1, -1, so); }
+          if (dz === 1) { gb.wallZ(mats.plaster, wx, wx + CELL, wz + CELL, Y + CEIL, sy, -1, st); gb.wallZ(mats.stone, wx, wx + CELL, wz + CELL + 0.02, Y + LEVEL_H, sy + 0.1, 1, so); }
+          if (dz === -1) { gb.wallZ(mats.plaster, wx, wx + CELL, wz, Y + CEIL, sy, 1, st); gb.wallZ(mats.stone, wx, wx + CELL, wz - 0.02, Y + LEVEL_H, sy + 0.1, -1, so); }
         }
         continue;
       }
@@ -142,6 +143,12 @@ export function buildStructure(S, l, ccx, ccz) {
     if (voidHere && l < TOP && mall.roomId(l + 1, x, z) < 0) continue;
     const cs = ceilStyle(room);
     const cy = Y + cs.h;
+    if (l === TOP) {
+      // roof membrane + occasional rooftop plant
+      gb.floor(mats.concrete, wx, wz, wx + CELL, wz + CELL, Y + LEVEL_H, [0.78, 0.78, 0.76]);
+      const h = (x * 73856093) ^ (z * 19349663);
+      if ((h & 63) === 7) { gb.box(mats.metal, wx + 2, Y + LEVEL_H, wz + 2, 2.6, 1.6, 1.8, [0.75, 0.76, 0.74]); gb.box(mats.metal, wx + 2, Y + LEVEL_H + 1.6, wz + 2, 1.2, 0.3, 1.2, [0.4, 0.4, 0.42]); }
+    }
     gb.floor(M(cs.mat), wx, wz, wx + CELL, wz + CELL, cy, cs.col, true);
     // light fixtures
     const lc = room.kind === 'garage' || room.kind === 'tunnel' ? [0.9, 0.95, 1] : [1, 0.96, 0.88];
@@ -185,7 +192,18 @@ export function buildStructure(S, l, ccx, ccz) {
   const drawEdge = (type, ra, rb, va, vb, orient, ex, ez) => {
     const A = wallStyle(ra, mall), B = wallStyle(rb, mall);
     switch (type) {
-      case E.WALL: case E.EXTERIOR: faces(0, CELL, 0, wallTop, A, B); break;
+      case E.WALL: faces(0, CELL, 0, wallTop, A, B); break;
+      case E.EXTERIOR: {
+        faces(0, CELL, 0, wallTop, A, B);
+        if (l >= 0) {
+          const fac = { mat: 'stone', col: [0.8, 0.78, 0.74], k: 0.8 };
+          const top = l === TOP ? LEVEL_H + 1.0 : LEVEL_H;
+          faces(0, CELL, 0, top, ra ? null : fac, rb ? null : fac);
+          if (l === TOP) gb.boxA(mats.stone, 0, LEVEL_H + 1.0, -T, CELL, LEVEL_H + 1.15, T, [0.7, 0.7, 0.68]);
+          if (l === 0) gb.boxA(mats.metal, 0, 6.6, ra ? T : -T - 0.6, CELL, 6.9, ra ? T + 0.6 : -T, [0.35, 0.36, 0.38]);
+        }
+        break;
+      }
       case E.DOOR: {
         opening(A, B, 1.3, 2.7, 2.3, wallTop);
         const fc = [0.35, 0.36, 0.38];
@@ -240,6 +258,12 @@ export function buildStructure(S, l, ccx, ccz) {
         const g1 = type === E.MAIN_ENTRANCE ? CEIL - 0.4 : CEIL - 0.6;
         if (type === E.WINDOW) faces(0, CELL, 0, g0, ra ? A : null, ra ? null : B);
         faces(0, CELL, g1, wallTop, ra ? A : null, ra ? null : B);
+        {
+          const fac = { mat: 'stone', col: [0.8, 0.78, 0.74], k: 0.8 };
+          const top = l === TOP ? LEVEL_H + 1.0 : LEVEL_H;
+          faces(0, CELL, g1, top, ra ? null : fac, ra ? fac : null);
+          if (type === E.WINDOW) faces(0, CELL, 0, g0, ra ? null : fac, ra ? fac : null);
+        }
         gb.quad(mats.glass, [[0, g0, 0], [CELL, g0, 0], [CELL, g1, 0], [0, g1, 0]], [0, 0, 1], [0.85, 1, 1], [[0, 0], [1, 0], [1, 1], [0, 1]]);
         const mc = [0.22, 0.23, 0.25];
         for (const mx of [0.05, CELL / 2, CELL - 0.05]) gb.boxA(mats.metal, mx - 0.05, g0, -0.09, mx + 0.05, g1, 0.09, mc);
@@ -278,7 +302,7 @@ export function buildStructure(S, l, ccx, ccz) {
       const far = dir > 0 ? mall.H * CELL + 45 : -45;
       const cx = (o.ex + 0.5) * CELL;
       const za = Math.min(zEdge, far), zb = Math.max(zEdge, far);
-      gb.floor(mats.pavement, cx - 40, za, cx + 40, zb, -0.05, ground);
+      gb.floor(mats.pavement, cx - 40, za, cx + 40, zb, -0.03, ground);
       gb.wallZ(mats.outdoor, cx - 60, cx + 60, far, -2, 40, -dir, W1);
       fixOutdoorUV(gb, mats, cx - 60, cx + 60);
     } else {
@@ -286,7 +310,7 @@ export function buildStructure(S, l, ccx, ccz) {
       const far = dir > 0 ? mall.W * CELL + 45 : -45;
       const cz = (o.ez + 0.5) * CELL;
       const xa = Math.min(xEdge, far), xb = Math.max(xEdge, far);
-      gb.floor(mats.pavement, xa, cz - 40, xb, cz + 40, -0.05, ground);
+      gb.floor(mats.pavement, xa, cz - 40, xb, cz + 40, -0.03, ground);
       gb.wallX(mats.outdoor, cz - 60, cz + 60, far, -2, 40, -dir, W1);
       fixOutdoorUV(gb, mats, cz - 60, cz + 60);
     }
@@ -302,7 +326,7 @@ export function buildStructure(S, l, ccx, ccz) {
     const concAdj = rooms.some((r) => r && r.kind === 'concourse');
     let st = concAdj ? { mat: 'stone', col: [0.9, 0.88, 0.85], k: 0.9 } : wallStyle(rooms.find((r) => r), mall);
     if (!st) continue;
-    gb.box(M(st.mat), x * CELL, Y, z * CELL, 0.4, wallTop, 0.4, styleAt(st, wallTop), { grad: st.k, skip: ['b'] });
+    gb.box(M(st.mat), x * CELL, Y, z * CELL, 0.4, wallTop, 0.4, styleAt(st, wallTop), { grad: st.k, skip: ['b', 't'] });
   }
 
   // ---- escalators, stairs, elevators, fountains

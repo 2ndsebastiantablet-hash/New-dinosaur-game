@@ -81,6 +81,7 @@ export class HUD {
     this.lastLoc = '';
     this.setupMap();
   }
+  setMall(mall, imgs) { this.mall = mall; this.imgs = imgs; this.lastLoc = ''; }
   locate(px, py, pz, level) {
     const m = this.mall;
     const cx = Math.floor(px / CELL), cz = Math.floor(pz / CELL);

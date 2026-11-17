@@ -9,6 +9,7 @@ const views = JSON.parse(process.argv[4] || '[]');
 fs.mkdirSync(out, { recursive: true });
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+page.setDefaultTimeout(120000);
 page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning' || m.text().includes('generated')) console.log('[page]', m.type(), m.text()); });
 page.on('pageerror', (e) => console.log('[pageerror]', e.message));
 await page.goto(`http://localhost:4173/?seed=${seed}&shot`);

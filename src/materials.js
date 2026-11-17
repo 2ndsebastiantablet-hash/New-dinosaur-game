@@ -79,7 +79,7 @@ export function makeMaterials(lowMem = false) {
   M.tank = new THREE.MeshStandardMaterial({ color: 0x2a7fb8, transparent: true, opacity: 0.45, roughness: 0.05, depthWrite: false, side: THREE.DoubleSide, vertexColors: true, envMapIntensity: 1.0 });
   M.tank.name = 'tank';
   const basic = (name, o) => { M[name] = new THREE.MeshBasicMaterial({ vertexColors: true, ...o }); M[name].name = name; };
-  basic('sky', { map: T.sky, color: new THREE.Color(1.0, 1.0, 1.04), side: THREE.DoubleSide, fog: false });
+  basic('sky', { map: T.sky, color: new THREE.Color(1.0, 1.0, 1.04), fog: false });
   basic('outdoor', { map: T.outdoor, color: new THREE.Color(1.4, 1.4, 1.4), fog: false });
   M.shadow = new THREE.MeshBasicMaterial({ map: T.shadow, transparent: true, depthWrite: false, color: 0x000000, opacity: 0.9, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   M.shadow.name = 'shadow';
