@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>MEGAMALL</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div id="app"></div>
+
+  <div id="loading">
+    <div class="logo">MEGA<span>MALL</span></div>
+    <div id="loading-text">Loading…</div>
+  </div>
+
+  <div id="start" class="overlay">
+    <div class="panel">
+      <div class="logo">MEGA<span>MALL</span></div>
+      <p class="tag">A procedurally generated, open-world super mall. Every seed is a different mall.</p>
+      <div class="cols">
+        <div>
+          <h3>This mall</h3>
+          <div id="stats" class="stats"></div>
+          <div class="seedrow">
+            <label>Seed <input id="seed" type="number" /></label>
+            <button id="reseed">Generate</button>
+            <button id="random">Random</button>
+          </div>
+        </div>
+        <div>
+          <h3>Attractions</h3>
+          <ul id="attractions" class="attr"></ul>
+        </div>
+      </div>
+      <div class="controls">
+        <span><kbd>WASD</kbd> walk</span><span><kbd>Shift</kbd> run</span><span><kbd>Space</kbd> jump</span>
+        <span><kbd>C</kbd> crouch</span><span><kbd>M</kbd> map / fast-travel</span><span><kbd>E</kbd> elevator</span>
+        <span><kbd>F</kbd> flashlight</span><span><kbd>G</kbd> drone mode</span><span><kbd>[ ]</kbd> view distance</span><span><kbd>H</kbd> help</span>
+      </div>
+      <button id="enter" class="big">Enter the Mall</button>
+    </div>
+  </div>
+
+  <div id="pause" class="overlay" style="display:none">
+    <div class="panel small">
+      <div class="logo">PAUSED</div>
+      <button id="resume" class="big">Resume</button>
+      <p class="tag">Press <kbd>M</kbd> for the mall directory map.</p>
+    </div>
+  </div>
+
+  <div id="hud" style="display:none">
+    <div id="loc">
+      <div id="loc-level">L1</div>
+      <div class="loc-text"><div id="loc-name"></div><div id="loc-sub"></div></div>
+    </div>
+    <div id="minimap-wrap"><canvas id="minimap" width="190" height="190"></canvas><div id="compass"></div></div>
+    <div id="crosshair"></div>
+    <div id="prompt"><kbd>E</kbd> Call glass elevator</div>
+    <div id="flash"></div>
+    <div id="perf"></div>
+    <div id="help">
+      <b>Exploring MEGAMALL</b>
+      <p>Boulevards run between city-block sized wings of shops. Main boulevards are open to the skylights with bridges and escalators. Look for <i>STAFF ONLY</i> doors — they lead into service corridors behind the shops, back rooms, and stairwells down to the basement tunnels and parking.</p>
+      <p><kbd>M</kbd> map (click to fast-travel, scroll to zoom) · <kbd>G</kbd> drone mode · <kbd>F</kbd> flashlight · <kbd>P</kbd> stats · <kbd>B</kbd> bloom</p>
+    </div>
+  </div>
+
+  <div id="mapview" style="display:none">
+    <canvas id="mapcanvas"></canvas>
+    <div id="maptabs"></div>
+    <div id="mapzoom"><button id="mapzoomin">+</button><button id="mapzoomout">−</button></div>
+    <div id="maplegend">Click any floor to fast-travel · drag to pan · scroll to zoom · <kbd>M</kbd> close</div>
+  </div>
+
+  <div id="elevator" class="overlay" style="display:none">
+    <div class="panel small">
+      <div class="logo">ELEVATOR</div>
+      <div id="elevator-btns"></div>
+      <button id="elevator-close">Close</button>
+    </div>
+  </div>
+
+  <div id="touch" style="display:none">
+    <div id="stick"><div id="knob"></div></div>
+    <div class="tbtns">
+      <button class="tbtn" id="t-map">MAP</button>
+      <button class="tbtn" id="t-use">USE</button>
+      <button class="tbtn" id="t-light">LIGHT</button>
+      <button class="tbtn" id="t-fly">FLY</button>
+      <button class="tbtn" id="t-down">▼</button>
+      <button class="tbtn big" id="t-jump">▲</button>
+    </div>
+  </div>
+  <div id="fade"></div>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

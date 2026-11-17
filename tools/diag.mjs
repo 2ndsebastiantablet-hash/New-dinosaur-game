@@ -1,0 +1,33 @@
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const { chromium } = require('playwright');
+const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+await page.goto(`http://localhost:4173/?seed=12345&shot`);
+await page.waitForFunction(() => window.__mall, null, { timeout: 120000 });
+const res = await page.evaluate(() => {
+  const M = window.__mall; const THREE_ = M.scene.constructor; 
+  M.player.spawn(M.mall.spawn); M.player.applyCamera(1, 0);
+  M.world.update(M.player.pos.x, M.player.pos.z, M.player.level, 60000);
+  M.camera.updateMatrixWorld();
+  const cam = M.camera;
+  const proj = cam.projectionMatrix.clone().multiply(cam.matrixWorldInverse);
+  const fr = new (Object.getPrototypeOf(cam.frustum || {}).constructor || Object)();
+  const byMat = {}, byPart = {}, byLevel = {};
+  let total = 0, vis = 0;
+  const F = new window.__THREE.Frustum().setFromProjectionMatrix(proj);
+  M.world.root.traverse((o) => {
+    if (!o.isMesh) return;
+    total++;
+    const sp = o.geometry.boundingSphere;
+    if (!F.intersectsSphere(sp)) return;
+    vis++;
+    const part = o.parent.name.split(':')[0], lvl = o.parent.name.split(':')[1];
+    byMat[o.material.name] = (byMat[o.material.name] || 0) + 1;
+    byPart[part] = (byPart[part] || 0) + 1;
+    byLevel[lvl] = (byLevel[lvl] || 0) + 1;
+  });
+  return { total, vis, byPart, byLevel, byMat: Object.entries(byMat).sort((a, b) => b[1] - a[1]) };
+});
+console.log(JSON.stringify(res, null, 1));
+await browser.close();
