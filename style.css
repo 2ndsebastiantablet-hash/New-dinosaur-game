@@ -58,3 +58,14 @@ button.big { background: var(--accent); color: #1a1205; border: none; font-weigh
 .tbtns { position: absolute; right: 16px; bottom: 24px; display: grid; grid-template-columns: repeat(3, 64px); gap: 10px; }
 .tbtn { width: 64px; height: 52px; border-radius: 14px; background: rgba(20, 24, 32, 0.6); border: 1px solid rgba(255, 255, 255, 0.25); font-weight: 700; font-size: 13px; padding: 0; }
 .tbtn.big { background: rgba(255, 179, 71, 0.65); color: #1a1205; }
+
+#ridehud { display: none; position: absolute; left: 50%; top: 16px; transform: translateX(-50%); background: rgba(10, 12, 18, 0.7); padding: 8px 16px; border-radius: 10px; font-weight: 600; font-size: 14px; max-width: calc(100vw - 460px); text-align: center; }
+@media (max-width: 800px) { #ridehud { top: auto; bottom: 120px; max-width: calc(100vw - 32px); } }
+#underwater { position: fixed; inset: 0; pointer-events: none; z-index: 5; opacity: 0; transition: opacity 0.25s; background: radial-gradient(ellipse at 50% 30%, rgba(40, 150, 190, 0.25), rgba(5, 40, 70, 0.6)); }
+#alarm { display: none; position: fixed; inset: 0; pointer-events: none; z-index: 6; animation: strobe 0.6s steps(2) infinite; }
+@keyframes strobe { 0% { background: rgba(255, 0, 0, 0.18); } 100% { background: rgba(255, 255, 255, 0.06); } }
+@media (prefers-reduced-motion: reduce) { #alarm { animation: none; background: rgba(255, 0, 0, 0.12); } }
+.arcade-cab { background: #120a24; border: 3px solid #ff2bd6; border-radius: 18px; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 10px; box-shadow: 0 0 40px rgba(255, 43, 214, 0.4); max-width: 100%; }
+.arcade-title { font: 900 26px monospace; color: #2bf0ff; letter-spacing: 0.2em; text-shadow: 0 0 10px #2bf0ff; }
+#arcade-canvas { width: min(480px, 88vw); height: auto; border-radius: 8px; background: #07051a; touch-action: none; }
+.arcade-help { font-size: 12px; opacity: 0.75; text-align: center; }

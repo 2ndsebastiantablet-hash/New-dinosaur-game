@@ -23,6 +23,7 @@ export function shadow(gb, M, x, z, sx, sz, y = 0) { gb.shadow(x, z, y, sx, sz, 
 // ---------------------------------------------------------------- generic furniture
 export function bench(gb, M, x, z, rot, len = 2.2) {
   at(gb, x, 0, z, rot, () => {
+    gb.reg('seat', 0, 0.45, 0.02, 'Sit on the bench');
     gb.box(M.wood, 0, 0.42, 0, len, 0.07, 0.5, [0.7, 0.5, 0.32]);
     gb.box(M.wood, 0, 0.5, -0.24, len, 0.4, 0.06, [0.7, 0.5, 0.32]);
     for (const sx of [-len / 2 + 0.15, len / 2 - 0.15]) gb.box(M.metal, sx, 0, 0, 0.08, 0.42, 0.46, DARK);
@@ -30,6 +31,7 @@ export function bench(gb, M, x, z, rot, len = 2.2) {
   });
 }
 export function trashBin(gb, M, x, z) {
+  gb.reg('trash', x, 0.9, z, 'Trash bin');
   gb.vcyl(M.metal, x, 0, z, 0.25, 0.85, [0.3, 0.32, 0.34]);
   gb.vcyl(M.metal, x, 0.85, z, 0.27, 0.06, [0.15, 0.15, 0.16]);
   shadow(gb, M, x, z, 0.9, 0.9);
@@ -76,6 +78,7 @@ export function planter(gb, M, x, z, w, d, kind, rng) {
 export function kiosk(gb, M, x, z, rot, rng) {
   const col = rcol(rng, [0.4, 0.7], [0.35, 0.55]);
   at(gb, x, 0, z, rot, () => {
+    gb.reg('kiosk', 0, 1.2, 0, 'Browse the kiosk');
     gb.box(M.gloss, 0, 0, 0, 2.6, 1.05, 1.4, col);
     gb.box(M.stone, 0, 1.05, 0, 2.8, 0.06, 1.6, [0.9, 0.9, 0.9]);
     gb.box(M.glass, 0, 1.11, 0, 2.4, 0.35, 1.2, W);
@@ -92,6 +95,7 @@ export function column(gb, M, x, z, h, r = 0.45) {
 }
 export function directory(gb, M, x, z, rot) {
   at(gb, x, 0, z, rot, () => {
+    gb.reg('directory', 0, 1.3, 0.2, 'Open the mall directory');
     gb.box(M.gloss, 0, 0, 0, 1.0, 2.1, 0.25, [0.12, 0.13, 0.15]);
     gb.box(M.screen, 0, 0.6, 0.13, 0.8, 1.3, 0.01, W);
     shadow(gb, M, 0, 0, 1.4, 0.8);
@@ -107,6 +111,7 @@ export function banner(gb, M, x, y, z, rot, col, h = 3.2) {
 // ---------------------------------------------------------------- retail fixtures
 export function clothingRack(gb, M, x, z, rot, len, rng) {
   at(gb, x, 0, z, rot, () => {
+    gb.reg('rack', 0, 1.1, 0.35, 'Browse the clothes');
     gb.box(M.chrome, 0, 1.45, 0, len, 0.04, 0.04, CHROME);
     for (const sx of [-len / 2, len / 2]) { gb.box(M.chrome, sx, 0, 0, 0.04, 1.47, 0.04, CHROME); gb.box(M.chrome, sx, 0, 0, 0.05, 0.03, 0.6, CHROME); }
     const n = Math.floor(len / 0.09);
@@ -132,6 +137,7 @@ export function roundRack(gb, M, x, z, rng) {
 }
 export function foldTable(gb, M, x, z, rot, rng) {
   at(gb, x, 0, z, rot, () => {
+    gb.reg('browse', 0, 0.95, 0.5, 'Pick up a folded shirt', { item: 'shirt' });
     gb.box(M.wood, 0, 0.75, 0, 1.8, 0.06, 0.9, [0.85, 0.75, 0.6]);
     for (const sx of [-0.8, 0.8]) gb.box(M.wood, sx, 0, 0, 0.08, 0.75, 0.8, [0.8, 0.7, 0.55]);
     for (let i = 0; i < 6; i++) {
@@ -156,6 +162,7 @@ export function mannequin(gb, M, x, z, rot, col, base = 0) {
 // shelving unit against a wall, front faces +z
 export function wallShelf(gb, M, x, z, rot, len, h, mat, frameCol = [0.9, 0.9, 0.9]) {
   at(gb, x, 0, z, rot, () => {
+    if (mat) gb.reg('shelf', 0, 1.1, 0.45, mat === M.books ? 'Take a book' : 'Take something off the shelf', { item: mat === M.books ? 'book' : mat === M.matte ? 'box' : 'product' });
     gb.box(M.plastic, 0, 0, -0.25, len, h, 0.05, frameCol);
     for (const sx of [-len / 2, len / 2]) gb.box(M.plastic, sx, 0, 0, 0.05, h, 0.5, frameCol);
     const n = Math.max(2, Math.round(h / 0.45));
@@ -168,6 +175,7 @@ export function wallShelf(gb, M, x, z, rot, len, h, mat, frameCol = [0.9, 0.9, 0
 }
 export function gondola(gb, M, x, z, rot, len, h, mat, col = [0.92, 0.92, 0.92]) {
   at(gb, x, 0, z, rot, () => {
+    gb.reg('shelf', 0, 1.0, 0.7, 'Take a product');
     gb.box(M.plastic, 0, 0, 0, len, h, 0.08, col);
     gb.box(M.plastic, 0, 0, 0, len, 0.12, 1.1, mul(col, 0.6));
     const n = Math.max(2, Math.round(h / 0.42));
@@ -182,6 +190,7 @@ export function gondola(gb, M, x, z, rot, len, h, mat, col = [0.92, 0.92, 0.92])
 }
 export function counter(gb, M, x, z, rot, len, col = [0.25, 0.25, 0.27], top = [0.9, 0.9, 0.9]) {
   at(gb, x, 0, z, rot, () => {
+    gb.reg('register', len / 2 - 0.5, 1.1, 0.4, 'Ring up the cash register');
     gb.box(M.gloss, 0, 0, 0, len, 1.0, 0.7, col);
     gb.box(M.stone, 0, 1.0, 0, len + 0.1, 0.05, 0.8, top);
     gb.box(M.plastic, len / 2 - 0.5, 1.05, 0, 0.35, 0.12, 0.3, DARK);
@@ -192,6 +201,7 @@ export function counter(gb, M, x, z, rot, len, col = [0.25, 0.25, 0.27], top = [
 }
 export function displayTable(gb, M, x, z, rot, w, d, kind, rng) {
   at(gb, x, 0, z, rot, () => {
+    gb.reg('browse', 0, 1.0, d / 2, 'Pick up an item', { item: kind || 'gift' });
     gb.box(M.wood, 0, 0.8, 0, w, 0.06, d, [0.85, 0.82, 0.78]);
     gb.box(M.plastic, 0, 0, 0, w - 0.2, 0.8, d - 0.2, [0.95, 0.95, 0.95]);
     const n = Math.floor(w / 0.5);
@@ -212,6 +222,7 @@ export function displayTable(gb, M, x, z, rot, w, d, kind, rng) {
 }
 export function glassCase(gb, M, x, z, rot, len, rng) {
   at(gb, x, 0, z, rot, () => {
+    gb.reg('case', 0, 1.0, 0.4, 'Look in the display case');
     gb.box(M.gloss, 0, 0, 0, len, 0.85, 0.6, [0.12, 0.1, 0.12]);
     gb.box(M.light, 0, 0.85, 0, len - 0.1, 0.02, 0.5, [1.2, 1.1, 1]);
     for (let i = 0; i < len / 0.3; i++) gb.box(M.gold, -len / 2 + 0.15 + i * 0.3, 0.87, rng.range(-0.15, 0.15), 0.06, 0.03, 0.06, rng.chance(0.3) ? [0.8, 0.8, 0.85] : [1, 0.8, 0.4]);
@@ -239,6 +250,7 @@ export function fittingRooms(gb, M, x, z, rot, n) {
 }
 export function sofa(gb, M, x, z, rot, col, len = 2.2) {
   at(gb, x, 0, z, rot, () => {
+    gb.reg('seat', 0, 0.45, 0.12, 'Sit on the sofa');
     gb.box(M.fabric, 0, 0.1, 0, len, 0.35, 0.9, col);
     gb.box(M.fabric, 0, 0.1, -0.35, len, 0.85, 0.22, mul(col, 0.9));
     for (const sx of [-len / 2 + 0.1, len / 2 - 0.1]) gb.box(M.fabric, sx, 0.1, 0, 0.22, 0.6, 0.9, mul(col, 0.85));
@@ -248,6 +260,7 @@ export function sofa(gb, M, x, z, rot, col, len = 2.2) {
 }
 export function bed(gb, M, x, z, rot, col) {
   at(gb, x, 0, z, rot, () => {
+    gb.reg('bed', 0, 0.65, 0.2, 'Lie down on the bed');
     gb.box(M.wood, 0, 0, 0, 1.7, 0.35, 2.1, [0.45, 0.32, 0.22]);
     gb.box(M.fabric, 0, 0.35, 0.05, 1.6, 0.25, 2.0, WHITE);
     gb.box(M.fabric, 0, 0.6, 0.35, 1.62, 0.06, 1.4, col);
@@ -267,6 +280,7 @@ export function diningSet(gb, M, x, z, rng, round = true, chairs = 4, col, chair
     const a = (i / chairs) * Math.PI * 2 + 0.4;
     const cx = x + Math.cos(a) * 0.75, cz = z + Math.sin(a) * 0.75;
     at(gb, cx, 0, cz, -a + Math.PI / 2, () => {
+      if (i === 0) gb.reg('seat', 0, 0.48, 0, 'Sit at the table', null, -1);
       gb.box(M.plastic, 0, 0.44, 0, 0.42, 0.05, 0.42, cc);
       gb.box(M.plastic, 0, 0.44, 0.19, 0.42, 0.45, 0.04, cc);
       for (const sx of [-0.18, 0.18]) for (const sz of [-0.18, 0.18]) gb.box(M.metal, sx, 0, sz, 0.03, 0.44, 0.03, DARK);
@@ -279,6 +293,7 @@ export function bookcase(gb, M, x, z, rot, len, h = 2.2) {
 }
 export function guitarWall(gb, M, x, z, rot, len, rng) {
   at(gb, x, 0, z, rot, () => {
+    gb.reg('guitar', 0, 1.3, 0.3, 'Strum a guitar');
     gb.box(M.wood, 0, 0, -0.05, len, 3, 0.05, [0.35, 0.22, 0.15]);
     for (let i = 0; i < len / 0.5; i++) for (let j = 0; j < 2; j++) {
       const c = rcol(rng, [0.4, 0.9], [0.2, 0.6]);
@@ -290,6 +305,7 @@ export function guitarWall(gb, M, x, z, rot, len, rng) {
 }
 export function piano(gb, M, x, z, rot) {
   at(gb, x, 0, z, rot, () => {
+    gb.reg('piano', 0, 0.9, -1.1, 'Play the piano', null, -1);
     gb.box(M.gloss, 0, 0.6, 0, 1.5, 0.35, 1.8, DARK);
     for (const [px, pz] of [[-0.6, -0.7], [0.6, -0.7], [0, 0.7]]) gb.box(M.gloss, px, 0, pz, 0.1, 0.6, 0.1, DARK);
     gb.box(M.gloss, 0, 0.62, -0.95, 1.5, 0.1, 0.25, WHITE);
@@ -298,6 +314,7 @@ export function piano(gb, M, x, z, rot) {
 }
 export function treadmill(gb, M, x, z, rot) {
   at(gb, x, 0, z, rot, () => {
+    gb.reg('treadmill', 0, 0.25, 0.2, 'Run on the treadmill', null, -1);
     gb.box(M.rubber, 0, 0, 0, 0.8, 0.22, 1.9, DARK);
     for (const sx of [-0.38, 0.38]) gb.box(M.metal, sx, 0.2, -0.75, 0.05, 1.1, 0.05, STEEL);
     gb.box(M.plastic, 0, 1.25, -0.8, 0.8, 0.12, 0.3, DARK);
@@ -307,6 +324,7 @@ export function treadmill(gb, M, x, z, rot) {
 }
 export function bike(gb, M, x, z, rot) {
   at(gb, x, 0, z, rot, () => {
+    gb.reg('bike', 0, 1.0, 0.2, 'Ride the exercise bike', null, -1);
     gb.box(M.metal, 0, 0, 0, 0.5, 0.06, 1.1, DARK);
     gb.beam(M.metal, [0, 0.05, 0.4], [0, 0.95, 0.15], 0.07, 0.07, STEEL);
     gb.beam(M.metal, [0, 0.05, -0.35], [0, 1.1, -0.3], 0.07, 0.07, STEEL);
@@ -318,6 +336,7 @@ export function bike(gb, M, x, z, rot) {
 }
 export function weightRack(gb, M, x, z, rot) {
   at(gb, x, 0, z, rot, () => {
+    gb.reg('weights', 0, 1.0, 0.4, 'Lift weights');
     gb.box(M.metal, 0, 0, 0, 2.2, 0.08, 0.6, DARK);
     for (const sx of [-1, 1]) gb.box(M.metal, sx, 0, 0, 0.08, 1.0, 0.5, DARK);
     for (const y of [0.45, 0.85]) {
@@ -330,6 +349,7 @@ export function weightRack(gb, M, x, z, rot) {
 export function arcadeCab(gb, M, x, z, rot, rng) {
   const c = rcol(rng, [0.6, 0.95], [0.3, 0.55]);
   at(gb, x, 0, z, rot, () => {
+    gb.reg('arcade', 0, 1.2, 0.55, 'Play the arcade game', null, -1);
     gb.box(M.gloss, 0, 0, 0, 0.75, 1.85, 0.8, c);
     gb.box(M.screen, 0, 1.15, 0.38, 0.6, 0.45, 0.03, W);
     gb.box(M.plastic, 0, 0.9, 0.45, 0.72, 0.12, 0.35, DARK);
@@ -338,6 +358,7 @@ export function arcadeCab(gb, M, x, z, rot, rng) {
   });
 }
 export function clawMachine(gb, M, x, z, rng) {
+  gb.reg('claw', x, 1.0, z + 0.5, 'Play the claw machine');
   const c = rcol(rng, [0.6, 0.9], [0.45, 0.6]);
   gb.box(M.gloss, x, 0, z, 1.0, 0.9, 1.0, c);
   gb.box(M.glass, x, 0.9, z, 0.96, 1.0, 0.96, W);
@@ -348,6 +369,7 @@ export function clawMachine(gb, M, x, z, rng) {
 }
 export function car(gb, M, x, z, rot, col) {
   at(gb, x, 0, z, rot, () => {
+    gb.reg('car', 0.9, 1.0, 0, 'Try the car door');
     gb.box(M.gloss, 0, 0.3, 0, 1.8, 0.62, 4.4, col);
     gb.box(M.gloss, 0, 0.92, 0.15, 1.6, 0.5, 2.2, col);
     gb.box(M.glass, 0, 0.94, 0.15, 1.64, 0.44, 2.24, [0.3, 0.4, 0.5]);
@@ -381,6 +403,7 @@ export function palletRack(gb, M, x, z, rot, len, rng, h = 4) {
   });
 }
 export function boxStack(gb, M, x, z, rng, n = 4) {
+  gb.reg('box', x, 0.6, z, 'Take a cardboard box');
   for (let i = 0; i < n; i++) {
     const s = rng.range(0.35, 0.7);
     gb.geo(M.matte, TPL.box, x + rng.range(-0.4, 0.4), s / 2 + (i > 2 ? 0.5 : 0), z + rng.range(-0.4, 0.4), s, s * rng.range(0.6, 1), s * rng.range(0.7, 1.1), mul([0.72, 0.56, 0.38], rng.range(0.85, 1.1)), 0, rng.range(0, 1.5), 0);
@@ -388,6 +411,7 @@ export function boxStack(gb, M, x, z, rng, n = 4) {
   shadow(gb, M, x, z, 1.6, 1.6);
 }
 export function tank(gb, M, x, z, r, h, col = [0.7, 0.72, 0.75]) {
+  gb.reg('valve', x + r + 0.6, 1.0 + h * 0.4, z, 'Turn the valve');
   gb.vcyl(M.metal, x, 0.3, z, r, h, col, TPL.cyl20);
   gb.geo(M.metal, TPL.hemi, x, 0.3 + h, z, r * 2, r * 1.2, r * 2, col);
   for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) gb.box(M.metal, x + sx * r * 0.6, 0, z + sz * r * 0.6, 0.12, 0.35, 0.12, DARK);
@@ -396,6 +420,7 @@ export function tank(gb, M, x, z, r, h, col = [0.7, 0.72, 0.75]) {
 }
 export function hvac(gb, M, x, z, rot) {
   at(gb, x, 0, z, rot, () => {
+    gb.reg('valve', 0, 1.0, 0.8, 'Inspect the air handler');
     gb.box(M.metal, 0, 0, 0, 2.6, 1.8, 1.4, [0.75, 0.76, 0.74]);
     gb.box(M.dark, 0, 0.3, 0.71, 2.2, 1.0, 0.01, W);
     for (let i = 0; i < 8; i++) gb.box(M.metal, -1.0 + i * 0.28, 0.3, 0.72, 0.03, 1.0, 0.02, [0.5, 0.5, 0.5]);
@@ -405,6 +430,7 @@ export function hvac(gb, M, x, z, rot) {
 }
 export function panels(gb, M, x, z, rot, n) {
   at(gb, x, 0, z, rot, () => {
+    gb.reg('breaker', 0, 1.2, 0.35, 'Flip a breaker');
     for (let i = 0; i < n; i++) {
       gb.box(M.metal, -n * 0.45 + 0.45 + i * 0.9, 0, 0, 0.85, 2.1, 0.45, [0.6, 0.62, 0.6]);
       gb.box(M.plastic, -n * 0.45 + 0.45 + i * 0.9, 1.2, 0.23, 0.3, 0.2, 0.01, [0.9, 0.9, 0.85]);
@@ -414,12 +440,14 @@ export function panels(gb, M, x, z, rot, n) {
 }
 export function serverRack(gb, M, x, z, rot) {
   at(gb, x, 0, z, rot, () => {
+    gb.reg('pc', 0, 1.2, 0.6, 'Check the server rack');
     gb.box(M.gloss, 0, 0, 0, 0.6, 2.1, 1.0, [0.06, 0.06, 0.07]);
     for (let i = 0; i < 14; i++) gb.box(M.neon, -0.2 + (i % 3) * 0.08, 0.2 + i * 0.13, 0.51, 0.03, 0.02, 0.01, i % 4 ? [0.2, 1.5, 0.4] : [0.3, 0.6, 1.5]);
   });
 }
 export function desk(gb, M, x, z, rot, monitors = 1) {
   at(gb, x, 0, z, rot, () => {
+    gb.reg('pc', 0, 1.0, 0.1, 'Use the computer', null, -1);
     gb.box(M.wood, 0, 0.74, 0, 1.6, 0.04, 0.75, [0.75, 0.68, 0.58]);
     for (const sx of [-0.75, 0.75]) gb.box(M.metal, sx, 0, 0, 0.05, 0.74, 0.7, DARK);
     for (let i = 0; i < monitors; i++) {
@@ -435,6 +463,7 @@ export function desk(gb, M, x, z, rot, monitors = 1) {
 }
 export function vending(gb, M, x, z, rot, rng) {
   at(gb, x, 0, z, rot, () => {
+    gb.reg('vend', 0, 1.0, 0.5, 'Buy a drink');
     gb.box(M.gloss, 0, 0, 0, 0.95, 1.9, 0.8, rcol(rng, [0.6, 0.9], [0.3, 0.5]));
     gb.box(M.products, -0.1, 0.5, 0.41, 0.6, 1.2, 0.01, W);
     gb.box(M.light, 0.35, 1.2, 0.41, 0.15, 0.3, 0.01, W);
@@ -443,6 +472,7 @@ export function vending(gb, M, x, z, rot, rng) {
 }
 export function lockers(gb, M, x, z, rot, n) {
   at(gb, x, 0, z, rot, () => {
+    gb.reg('locker', 0, 1.2, 0.35, 'Open a locker');
     for (let i = 0; i < n; i++) {
       gb.box(M.metal, -n * 0.2 + 0.2 + i * 0.4, 0, 0, 0.38, 1.9, 0.5, [0.35, 0.45, 0.6]);
       gb.box(M.dark, -n * 0.2 + 0.2 + i * 0.4, 1.6, 0.251, 0.2, 0.03, 0.01, W);
@@ -460,6 +490,7 @@ export function cart(gb, M, x, z, rot) {
 export function stall(gb, M, x, z, rot, w, col, rng) {
   // food-court / theme-park style stall with menu board and awning
   at(gb, x, 0, z, rot, () => {
+    gb.reg('food', 0, 1.1, 0.6, 'Order food');
     gb.box(M.gloss, 0, 0, 0, w, 1.05, 0.8, col);
     gb.box(M.stone, 0, 1.05, 0, w + 0.1, 0.06, 0.9, [0.9, 0.9, 0.9]);
     gb.box(M.paint, 0, 0, -2.0, w, 3.2, 0.1, mul(col, 0.6));
@@ -472,14 +503,14 @@ export function stall(gb, M, x, z, rot, w, col, rng) {
 }
 
 // ---------------------------------------------------------------- entertainment
-export function bowlingLane(gb, M, x, z, len, rng) {
+export function bowlingLane(gb, M, x, z, len, rng, pins = false) {
   // lane along +z from z (foul line) to z+len, centred at x
   gb.box(M.lane, x, 0, z + len / 2, 1.06, 0.06, len, [1, 0.95, 0.85]);
   for (const sx of [-0.65, 0.65]) gb.box(M.metal, x + sx, 0, z + len / 2, 0.24, 0.03, len, [0.3, 0.3, 0.32]);
   gb.box(M.neon, x, 0.061, z + 4.5, 0.6, 0.003, 0.05, [0.2, 0.5, 1.4]);
   // pins
   let k = 0;
-  for (let row = 0; row < 4; row++) for (let i = 0; i <= row; i++) {
+  if (pins) for (let row = 0; row < 4; row++) for (let i = 0; i <= row; i++) {
     const px = x + (i - row / 2) * 0.3, pz = z + len - 1.2 + row * 0.26;
     if (rng.chance(0.08)) continue;
     gb.geo(M.gloss, TPL.cyl, px, 0.25, pz, 0.12, 0.38, 0.12, WHITE);
@@ -493,6 +524,7 @@ export function bowlingLane(gb, M, x, z, len, rng) {
 }
 export function cinemaSeats(gb, M, x, z, rot, n, col) {
   at(gb, x, 0, z, rot, () => {
+    gb.reg('seat', 0, 0.45, 0, 'Take a seat', null, -1);
     for (let i = 0; i < n; i++) {
       const sx = -n * 0.3 + 0.3 + i * 0.6;
       gb.box(M.fabric, sx, 0.25, 0, 0.55, 0.22, 0.55, col);
@@ -602,7 +634,7 @@ export function teacups(gb, M, x, z, rng) {
   }
   gb.geo(M.gloss, TPL.hemi, x, 0.3, z, 3, 3, 3, [0.9, 0.4, 0.6]);
 }
-export function bumperCars(gb, M, x, z, w, d, rng) {
+export function bumperCars(gb, M, x, z, w, d, rng, cars = true) {
   gb.box(M.metal, x, 0, z, w, 0.15, d, [0.25, 0.25, 0.28]);
   gb.box(M.gloss, x, 0, z - d / 2, w, 0.6, 0.2, [0.9, 0.8, 0.1]);
   gb.box(M.gloss, x, 0, z + d / 2, w, 0.6, 0.2, [0.9, 0.8, 0.1]);
@@ -610,7 +642,7 @@ export function bumperCars(gb, M, x, z, w, d, rng) {
   gb.box(M.gloss, x + w / 2, 0, z, 0.2, 0.6, d, [0.9, 0.8, 0.1]);
   for (const sx of [-w / 2, w / 2]) for (const sz of [-d / 2, d / 2]) gb.box(M.metal, x + sx, 0, z + sz, 0.2, 4.5, 0.2, [0.8, 0.1, 0.1]);
   gb.box(M.metal, x, 4.5, z, w, 0.1, d, [0.2, 0.2, 0.22]);
-  for (let i = 0; i < 12; i++) {
+  if (cars) for (let i = 0; i < 12; i++) {
     const cx = x + rng.range(-w / 2 + 1.2, w / 2 - 1.2), cz = z + rng.range(-d / 2 + 1.2, d / 2 - 1.2);
     at(gb, cx, 0.15, cz, rng.range(0, 6.28), () => {
       gb.box(M.rubber, 0, 0, 0, 1.4, 0.3, 2.0, DARK);
@@ -662,6 +694,7 @@ export function umbrella(gb, M, x, z, col) {
 }
 export function lounger(gb, M, x, z, rot) {
   at(gb, x, 0, z, rot, () => {
+    gb.reg('bed', 0, 0.4, 0.2, 'Lie on the lounger');
     gb.box(M.plastic, 0, 0.3, 0.2, 0.7, 0.06, 1.4, WHITE);
     gb.beam(M.plastic, [0, 0.33, -0.5], [0, 0.85, -0.85], 0.7, 0.06, WHITE);
     for (const sx of [-0.3, 0.3]) for (const sz of [-0.4, 0.8]) gb.box(M.plastic, sx, 0, sz, 0.05, 0.3, 0.05, WHITE);

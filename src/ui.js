@@ -81,6 +81,15 @@ export class HUD {
     this.lastLoc = '';
     this.setupMap();
   }
+  prompt(label) {
+    if (label === this._pl) return;
+    this._pl = label;
+    const el = this.el.prompt;
+    if (!label) { el.style.display = 'none'; return; }
+    const touch = matchMedia('(pointer: coarse)').matches;
+    el.innerHTML = `<kbd>${touch ? 'USE' : 'E'}</kbd> ${label}`;
+    el.style.display = 'block';
+  }
   setMall(mall, imgs) { this.mall = mall; this.imgs = imgs; this.lastLoc = ''; }
   locate(px, py, pz, level) {
     const m = this.mall;

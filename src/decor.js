@@ -15,8 +15,13 @@ function makeCtx(S, l, ccx, ccz, gb, mode) {
   const wx0 = X0 * CELL, wz0 = Z0 * CELL, wx1 = X1 * CELL, wz1 = Z1 * CELL;
   const Y = levelY(l);
   const colliders = [];
+  const inter = [];
+  gb.onReg = mode === 'detail' ? (it) => inter.push(it) : null;
   const ctx = {
-    S, mall, M: mats, gb, l, Y, X0, Z0, X1, Z1, colliders, mode,
+    S, mall, M: mats, gb, l, Y, X0, Z0, X1, Z1, colliders, mode, inter,
+    reg: (kind, lx, ly, lz, label, data, face) => gb.reg(kind, lx, ly, lz, label, data, face),
+    regW: (kind, x, y, z, label, data) => { if (gb.onReg) inter.push({ kind, x, y, z, label, data: data || null, yaw: data && data.yaw || 0 }); },
+    seat: (lx, ly, lz, rot) => { gb.push(lx, 0, lz, rot); gb.reg('seat', 0, ly, 0, 'Sit on the bench'); gb.pop(); },
     inW: (wx, wz) => wx >= wx0 && wx < wx1 && wz >= wz0 && wz < wz1,
     inL: (lx, lz) => { const p = gb.tp(lx, 0, lz); return ctx.inW(p[0], p[2]); },
     colL: (lx0, lz0, lx1, lz1, h = 2.2, y0 = 0) => {
@@ -38,14 +43,42 @@ export function buildDetail(S, l, ccx, ccz) {
     const room = mall.rooms[id];
     try { decorate(ctx, room); } catch (e) { console.warn('decor failed', room.kind, room.type, e); }
   }
+  doorsInChunk(ctx);
   const group = new THREE.Group();
   group.userData.verts = gb.build(group);
-  return { group, colliders: ctx.colliders };
+  return { group, colliders: ctx.colliders, inter: ctx.inter };
+}
+
+// openable doors on DOOR edges and automatic sliding doors at the grand entrances
+function doorsInChunk(ctx) {
+  const { mall, l, Y } = ctx;
+  const visit = (o, x, z, t) => {
+    if (t !== E.DOOR && !(t === E.MAIN_ENTRANCE && l === 0)) return;
+    let ax, az, bx, bz, frame;
+    if (o === 'h') { ax = x; az = z - 1; bx = x; bz = z; frame = [x * CELL, Y, z * CELL, 0]; }
+    else { ax = x - 1; az = z; bx = x; bz = z; frame = [x * CELL, Y, (z + 1) * CELL, Math.PI / 2]; }
+    const ra = mall.room(l, ax, az), rb = mall.room(l, bx, bz);
+    const c = Math.cos(frame[3]), s = Math.sin(frame[3]);
+    const at = (lx, ly, lz) => [frame[0] + lx * c + lz * s, frame[1] + ly, frame[2] - lx * s + lz * c];
+    const key = `${l}:${o}:${x}:${z}`;
+    if (t === E.DOOR) {
+      const p = at(2.0, 1.2, 0);
+      const staff = (ra && ra.kind === 'concourse') || (rb && rb.kind === 'concourse');
+      const stair = (ra && ra.kind === 'stair') || (rb && rb.kind === 'stair');
+      ctx.inter.push({ kind: 'door', x: p[0], y: p[1], z: p[2], label: staff ? 'Open the staff door' : stair ? 'Open the stairwell door' : 'Open the door', data: { key, frame, swing: rb ? 1 : -1, staff } });
+    } else {
+      const p = at(2.0, 1.2, 0);
+      ctx.inter.push({ kind: 'autodoor', x: p[0], y: p[1], z: p[2], label: null, data: { key, frame, outSign: ra ? 1 : -1 } });
+    }
+  };
+  for (let z = ctx.Z0; z < ctx.Z1; z++) for (let x = ctx.X0; x < ctx.X1 + (ctx.X1 === mall.W ? 1 : 0); x++) visit('v', x, z, mall.edgeV(l, x, z));
+  for (let z = ctx.Z0; z < ctx.Z1 + (ctx.Z1 === mall.H ? 1 : 0); z++) for (let x = ctx.X0; x < ctx.X1; x++) visit('h', x, z, mall.edgeH(l, x, z));
 }
 
 // Landmarks: large rides drawn with the long-range structure pass
 export function buildLandmarks(S, l, ccx, ccz, gb) {
   const ctx = makeCtx(S, l, ccx, ccz, gb, 'landmark');
+  gb.onReg = null;
   const ids = new Set();
   for (let z = ctx.Z0; z < ctx.Z1; z++) for (let x = ctx.X0; x < ctx.X1; x++) { const id = ctx.mall.roomId(l, x, z); if (id >= 0) ids.add(id); }
   for (const id of ids) {
@@ -287,6 +320,7 @@ const STORE = {
         gb.box(M.metal, 0, 0, 0, len, 0.8, 0.6, [0.2, 0.2, 0.22]);
         for (let i = 0; i < 2; i++) { gb.box(M.tank, -len / 4 + i * len / 2, 0.8, 0, len / 2 - 0.1, 0.6, 0.55, [0.5, 0.8, 1]); for (let k = 0; k < 4; k++) P.fish(gb, M, -len / 4 + i * len / 2 + r.range(-0.5, 0.5), 1.1, r.range(-0.1, 0.1), r.range(0, 6), 0.12, hsl(r.range(0, 360), 0.9, 0.55)); }
         gb.box(M.light, 0, 1.42, 0, len, 0.04, 0.5, [0.8, 1, 1.3]);
+        ctx.reg('feed', 0, 1.1, 0.35, 'Feed the fish');
       });
       ctx.colC(x, z, 0.7, len, 1.5);
     }, 2, 2);
@@ -343,7 +377,7 @@ const STORE = {
     const cz = f.d - 4.5;
     if (ctx.inL(f.w / 2, cz)) {
       P.counter(gb, M, f.w / 2, cz, 0, Math.min(f.w - 3, 7), resto ? [0.3, 0.18, 0.12] : [0.45, 0.3, 0.2], [0.85, 0.85, 0.82]);
-      if (!resto) { gb.box(M.chrome, f.w / 2 - 1.5, 1.05, cz, 0.6, 0.45, 0.45, [0.85, 0.85, 0.85]); gb.box(M.glass, f.w / 2 + 1.2, 1.05, cz + 0.1, 1.4, 0.5, 0.5, W); }
+      if (!resto) { ctx.reg('coffee', f.w / 2 - 1.5, 1.2, cz - 0.5, 'Pour a coffee', null, -1); gb.box(M.chrome, f.w / 2 - 1.5, 1.05, cz, 0.6, 0.45, 0.45, [0.85, 0.85, 0.85]); gb.box(M.glass, f.w / 2 + 1.2, 1.05, cz + 0.1, 1.4, 0.5, 0.5, W); }
       ctx.colC(f.w / 2, cz, Math.min(f.w - 3, 7) + 0.2, 0.9, 1.1);
     }
     grid(f, 2.5, 2.6, f.w - 2.5, cz - 2.5, resto ? 2.8 : 2.4, resto ? 2.8 : 2.4, (x, z) => { if (ctx.inL(x, z)) P.diningSet(gb, M, x, z, new RNG(room.seed + x * 7 + z), !resto || (x + z) % 2 > 1, resto ? 4 : 3, resto ? [0.9, 0.9, 0.88] : null); });
@@ -368,7 +402,7 @@ const STORE = {
   bank(ctx, room, f, r) {
     const { gb, M } = ctx;
     if (ctx.inL(f.w / 2, f.d - 3)) { P.counter(gb, M, f.w / 2, f.d - 3, 0, f.w - 3, [0.25, 0.28, 0.35]); gb.box(M.glass, f.w / 2, 1.05, f.d - 3, f.w - 3, 1.2, 0.04, W); ctx.colC(f.w / 2, f.d - 3, f.w - 3, 0.9, 2.2); }
-    for (let x = 2; x < f.w - 2; x += 1.4) if (ctx.inL(x, 0.8)) { gb.box(M.gloss, x, 0, 0.8, 0.9, 1.7, 0.6, [0.3, 0.32, 0.36]); gb.box(M.screen, x, 1.1, 0.48, 0.5, 0.35, 0.01, W); }
+    for (let x = 2; x < f.w - 2; x += 1.4) if (ctx.inL(x, 0.8)) { gb.box(M.gloss, x, 0, 0.8, 0.9, 1.7, 0.6, [0.3, 0.32, 0.36]); gb.box(M.screen, x, 1.1, 0.48, 0.5, 0.35, 0.01, W); ctx.reg('atm', x, 1.1, 0.6, 'Withdraw cash from the ATM'); }
     grid(f, 3, 5, f.w - 3, f.d - 7, 4, 3, (x, z) => { if (ctx.inL(x, z)) P.desk(gb, M, x, z, 0, 1); });
   },
   outdoor(ctx, room, f, r) {
@@ -390,7 +424,7 @@ const STORE = {
       const t = k.int(0, 3);
       if (t === 0) { P.treadmill(gb, M, x, z, 0); ctx.colC(x, z, 0.9, 2, 1.3); }
       else if (t === 1) { P.bike(gb, M, x, z, 0); }
-      else if (t === 2) { gb.vcyl(M.metal, x, 0, z, 0.6, 0.7, [0.2, 0.2, 0.22]); for (let i = 0; i < 9; i++) gb.sphere(M.gloss, x + k.range(-0.35, 0.35), 0.75 + k.range(0, 0.2), z + k.range(-0.35, 0.35), 0.12, k.pick([[0.9, 0.4, 0.1], W, [0.1, 0.2, 0.6]])); ctx.colC(x, z, 1.2, 1.2, 1); }
+      else if (t === 2) { ctx.reg('ball', x, 0.9, z, 'Grab a ball'); gb.vcyl(M.metal, x, 0, z, 0.6, 0.7, [0.2, 0.2, 0.22]); for (let i = 0; i < 9; i++) gb.sphere(M.gloss, x + k.range(-0.35, 0.35), 0.75 + k.range(0, 0.2), z + k.range(-0.35, 0.35), 0.12, k.pick([[0.9, 0.4, 0.1], W, [0.1, 0.2, 0.6]])); ctx.colC(x, z, 1.2, 1.2, 1); }
       else { P.clothingRack(gb, M, x, z, 0, 2.2, k); ctx.colC(x, z, 2.3, 0.7, 1.6); }
     });
     sideWalls(ctx, f, (x, z, rot, len) => P.wallShelf(gb, M, x, z, rot, len, 2.4, M.products, [0.2, 0.2, 0.22]), 2, 3);
@@ -415,7 +449,7 @@ function restroom(ctx, room) {
         gb.box(M.plastic, x, 0.15, z, 1.5, 2.0, 0.04, [0.35, 0.45, 0.55]);
         gb.box(M.gloss, x + (x < 2 ? -0.35 : 0.35), 0, z + 0.6, 0.4, 0.45, 0.55, [0.95, 0.95, 0.95]);
       }
-      for (const x of [1.6, f.w - 1.6]) { gb.box(M.stone, x, 0.8, 1.6, 0.6, 0.08, 2.4, [0.2, 0.2, 0.22]); gb.box(M.chrome, x + (x < 2 ? -0.3 : 0.3), 1.0, 1.6, 0.02, 1.0, 2.4, [0.9, 0.92, 0.95]); }
+      for (const x of [1.6, f.w - 1.6]) { ctx.reg('sink', x, 1.0, 1.6, 'Wash your hands'); gb.box(M.stone, x, 0.8, 1.6, 0.6, 0.08, 2.4, [0.2, 0.2, 0.22]); gb.box(M.chrome, x + (x < 2 ? -0.3 : 0.3), 1.0, 1.6, 0.02, 1.0, 2.4, [0.9, 0.92, 0.95]); }
       ctx.colC(f.w / 2, f.d / 2 + 1.5, 0.3, f.d - 3, 3);
     }
   });
@@ -453,6 +487,10 @@ function service(ctx, room) {
     const wx = (hd.x + 0.5) * CELL, wz = (hd.z + 0.5) * CELL;
     if (!ctx.inW(wx, wz)) continue;
     gb.box(M.neon, wx, ctx.Y + 2.9, wz, 0.5, 0.18, 0.5, [0.1, 1.4, 0.3]);
+    const ax = wx + (hd.side === 'N' || hd.side === 'S' ? 1.4 : 0), az = wz + (hd.side === 'N' || hd.side === 'S' ? 0 : 1.4);
+    gb.box(M.gloss, ax, ctx.Y + 1.2, az, 0.22, 0.3, 0.22, [0.85, 0.05, 0.05]);
+    gb.box(M.plastic, ax, ctx.Y + 1.32, az, 0.12, 0.06, 0.24, [0.95, 0.95, 0.95]);
+    ctx.regW('alarm', ax, ctx.Y + 1.3, az, 'Pull the fire alarm');
   }
 }
 const BACK = {
@@ -613,7 +651,12 @@ const VENUE = {
       const n = Math.floor((f.w - 4) / 2.0);
       for (let i = 0; i < n; i++) {
         const x = 2 + 1.0 + i * 2.0;
-        if (ctx.inL(x, start + laneLen / 2)) { P.bowlingLane(gb, M, x, start, laneLen, new RNG(room.seed + i)); ctx.colC(x, start + laneLen / 2 + 1, 1.9, laneLen - 1, 0.7); }
+        if (ctx.inL(x, start + laneLen / 2)) {
+          P.bowlingLane(gb, M, x, start, laneLen, new RNG(room.seed + i));
+          ctx.colC(x, start + laneLen / 2 + 1, 1.9, laneLen - 1, 0.7); ctx.colliders[ctx.colliders.length - 1].lane = true;
+          const foul = gb.tp(x, 0, start), fwd = gb.tn(0, 0, 1), side = gb.tn(1, 0, 0);
+          ctx.reg('bowl', x, 1.0, start - 1.2, `Bowl on lane ${i + 1}`, { lane: { id: `${room.id}:${i}`, n: i + 1, x: foul[0], y: foul[1], z: foul[2], fx: fwd[0], fz: fwd[2], sx: side[0], sz: side[2], len: laneLen } });
+        }
         if (i % 2 === 0) {
           // ball return, scoring screen and seating for each pair
           if (ctx.inL(x + 1, start - 1.5)) {
@@ -635,7 +678,7 @@ const VENUE = {
         if (!ctx.inL(x, z)) continue;
         const k = new RNG(room.seed + x * 7 + z);
         if ((x / 6 + z / 5) % 3 < 1) { for (let i = 0; i < 3; i++) P.arcadeCab(gb, M, x - 0.8 + i * 0.8, z, Math.PI, k); ctx.colC(x, z, 2.5, 0.9, 2); }
-        else { gb.box(M.wood, x, 0, z, 2.6, 0.8, 1.5, [0.3, 0.15, 0.08]); gb.box(M.carpet, x, 0.8, z, 2.3, 0.04, 1.2, [0.1, 0.25, 0.6]); gb.box(M.light, x, 2.6, z, 1.8, 0.1, 0.4, [1.4, 1.2, 0.8]); ctx.colC(x, z, 2.6, 1.5, 1); }
+        else { gb.box(M.wood, x, 0, z, 2.6, 0.8, 1.5, [0.3, 0.15, 0.08]); gb.box(M.carpet, x, 0.8, z, 2.3, 0.04, 1.2, [0.1, 0.25, 0.6]); ctx.reg('billiards', x, 0.95, z + 0.9, 'Break the rack'); gb.box(M.light, x, 2.6, z, 1.8, 0.1, 0.4, [1.4, 1.2, 0.8]); ctx.colC(x, z, 2.6, 1.5, 1); }
       }
     });
   },
@@ -649,6 +692,7 @@ const VENUE = {
         gb.box(M.light, f.w / 2, 2.6, D - 1.2, 14, 1.4, 0.1, [1.2, 1.1, 0.9]);
         gb.box(M.screen, f.w / 2, 2.6, D - 1.25, 13.4, 1.2, 0.01, W);
         gb.box(M.glass, f.w / 2 - 5, 1.05, D - 4, 1.2, 1.2, 0.8, [1, 0.9, 0.5]);
+        ctx.reg('popcorn', f.w / 2 - 5, 1.4, D - 4.6, 'Get popcorn', null, -1);
         ctx.colC(f.w / 2, D - 4, 14.2, 0.9, 1.1);
       }
       for (let x = 3; x < f.w - 2; x += 3.2) {
@@ -663,7 +707,10 @@ const VENUE = {
     inFrame(ctx, room, room.screenSide, (f) => {
       if (ctx.inL(f.w / 2, 0.3)) {
         gb.box(M.dark, f.w / 2, 0.8, 0.25, f.w - 0.6, CEIL - 1.2, 0.1, W);
-        gb.box(M.screen, f.w / 2, 1.6, 0.32, f.w - 2.4, (f.w - 2.4) / 2.35, 0.01, [0.55, 0.55, 0.6]);
+        const sw = f.w - 2.4, sh = sw / 2.35;
+        gb.box(M.dark, f.w / 2, 1.6, 0.31, sw, sh, 0.01, W);
+        const c = gb.tp(f.w / 2, 1.6 + sh / 2, 0.34), n = gb.tn(0, 0, 1);
+        ctx.inter.push({ kind: 'movie', visual: true, x: c[0], y: c[1], z: c[2], data: { w: sw, h: sh, nx: n[0], nz: n[2] } });
       }
       const col = [0.45, 0.06, 0.08];
       for (let z = 6; z < f.d - 1.5; z += 1.15) {
@@ -736,6 +783,10 @@ const VENUE = {
         gb.box(M.carpet, x, 0, z, 7, 0.08, 4.5, c);
         for (const [sx, sz, w, d] of [[0, -2.3, 7.2, 0.15], [0, 2.3, 7.2, 0.15], [-3.6, 0, 0.15, 4.6], [3.6, 0, 0.15, 4.6]]) gb.box(M.neon, x + sx, 0, z + sz, w, 0.18, d, hsl(k.range(0, 360), 1, 0.6));
         gb.geo(M.dark, TPL.disc, x + 2.5, 0.085, z, 0.3, 1, 0.3, W);
+        gb.vcyl(M.metal, x + 2.5, 0.08, z, 0.01, 0.9, [0.9, 0.9, 0.9]); gb.box(M.neon, x + 2.65, 0.75, z, 0.28, 0.16, 0.01, [1.4, 0.2, 0.3]);
+        gb.box(M.neon, x - 2.5, 0.081, z, 0.25, 0.005, 0.25, [1.4, 1.4, 1.4]);
+        { const tee = gb.tp(x - 2.5, 0.1, z), hole = gb.tp(x + 2.5, 0.08, z); ctx.reg('golf', x - 2.5, 0.4, z, 'Tee off on this hole', { tee, hole }); }
+        for (const [sx, sz, w, d] of [[0, -2.3, 7.2, 0.15], [0, 2.3, 7.2, 0.15], [-3.6, 0, 0.15, 4.6], [3.6, 0, 0.15, 4.6]]) { ctx.colC(x + sx, z + sz, w, d, 0.25); ctx.colliders[ctx.colliders.length - 1].golf = true; }
         const t = k.int(0, 2);
         if (t === 0) { gb.box(M.gloss, x, 0, z, 1.2, 2.2, 1.2, [0.9, 0.2, 0.6]); gb.geo(M.gloss, TPL.cone, x, 2.7, z, 1.6, 1.0, 1.6, [0.3, 0.9, 1]); for (let b = 0; b < 4; b++) gb.beam(M.neon, [x, 2.0, z + 0.62], [x + Math.cos(b * 1.57) * 1.6, 2.0 + Math.sin(b * 1.57) * 1.6, z + 0.65], 0.25, 0.04, [1.3, 1.3, 0.3]); }
         else if (t === 1) { gb.geo(M.gloss, TPL.hemi, x, 0, z, 2.4, 1.6, 2.4, hsl(k.range(0, 360), 0.9, 0.5)); }
@@ -759,6 +810,7 @@ const VENUE = {
     mainFrame(ctx, room, (f) => {
       // checkouts
       for (let x = 4; x < f.w * 0.6; x += 3.4) if (ctx.inL(x, 5)) {
+        ctx.reg('register', x + 0.7, 1.0, 5, 'Scan at the checkout');
         gb.box(M.gloss, x, 0, 5, 0.9, 0.9, 3.4, [0.2, 0.45, 0.25]); gb.box(M.rubber, x, 0.9, 5.3, 0.6, 0.02, 2.6, DARK);
         gb.vcyl(M.metal, x + 0.3, 0.9, 3.6, 0.03, 1.4, [0.5, 0.5, 0.5]); gb.box(M.light, x + 0.3, 2.3, 3.6, 0.3, 0.3, 0.05, [0.4, 1.4, 0.6]);
         ctx.colC(x, 5, 0.9, 3.4, 1);
@@ -819,7 +871,7 @@ const VENUE = {
     const { gb, M } = ctx;
     mainFrame(ctx, room, (f) => {
       const r = new RNG(room.seed);
-      if (ctx.inL(f.w / 2, f.d - 6)) { P.counter(gb, M, f.w / 2, f.d - 6, 0, 12, [0.35, 0.22, 0.12], [0.95, 0.92, 0.85]); gb.box(M.wood, f.w / 2, 0, f.d - 0.3, 16, 5, 0.2, [0.4, 0.27, 0.15]); ctx.colC(f.w / 2, f.d - 6, 12.2, 0.9, 1.1); }
+      if (ctx.inL(f.w / 2, f.d - 6)) { P.counter(gb, M, f.w / 2, f.d - 6, 0, 12, [0.35, 0.22, 0.12], [0.95, 0.92, 0.85]); gb.geo(M.gold, TPL.hemi, f.w / 2 - 2, 1.05, f.d - 6, 0.16, 0.12, 0.16, [1, 0.85, 0.5]); ctx.reg('bell', f.w / 2 - 2, 1.1, f.d - 6.5, 'Ring the reception bell', null, -1); gb.box(M.wood, f.w / 2, 0, f.d - 0.3, 16, 5, 0.2, [0.4, 0.27, 0.15]); ctx.colC(f.w / 2, f.d - 6, 12.2, 0.9, 1.1); }
       for (let x = 8; x < f.w - 8; x += 10) for (let z = 8; z < f.d - 12; z += 9) {
         if (!ctx.inL(x, z)) continue;
         gb.box(M.carpet, x, 0, z, 6, 0.015, 5, [0.45, 0.12, 0.12]);
@@ -838,7 +890,7 @@ const VENUE = {
     mainFrame(ctx, room, (f) => {
       for (let x = 6; x < f.w - 5; x += 6) for (let z = 7; z < f.d - 8; z += 5) {
         if (!ctx.inL(x, z)) continue;
-        gb.box(M.wood, x, 0, z, 2.6, 0.8, 1.5, [0.3, 0.15, 0.08]); gb.box(M.carpet, x, 0.8, z, 2.3, 0.04, 1.2, [0.05, 0.4, 0.15]);
+        gb.box(M.wood, x, 0, z, 2.6, 0.8, 1.5, [0.3, 0.15, 0.08]); gb.box(M.carpet, x, 0.8, z, 2.3, 0.04, 1.2, [0.05, 0.4, 0.15]); ctx.reg('billiards', x, 0.95, z + 0.9, 'Break the rack');
         gb.box(M.light, x, 2.6, z, 1.8, 0.1, 0.4, [1.4, 1.2, 0.8]);
         for (let i = 0; i < 6; i++) gb.sphere(M.gloss, x + Math.sin(i * 3) * 0.8, 0.88, z + Math.cos(i * 5) * 0.4, 0.04, hsl(i * 60, 0.8, 0.5));
         ctx.colC(x, z, 2.6, 1.5, 1);
@@ -852,136 +904,133 @@ const VENUE = {
 // ======================================================================= big attractions
 const ATTR = {
   themepark(ctx, room) {
-    const { gb, M } = ctx;
+    const { gb, M, mall } = ctx;
+    const plan = mall.plans.themepark;
+    if (!plan) return;
     const r = new RNG(room.seed);
+    const { cx, cz, w, d } = plan;
     const x0 = room.x0 * CELL, z0 = room.z0 * CELL, x1 = room.x1 * CELL, z1 = room.z1 * CELL;
-    const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, w = x1 - x0, d = z1 - z0;
     const Y = ctx.Y;
     if (ctx.mode === 'landmark') {
       gb.push(0, Y, 0, 0);
-      // roller coaster loop around the park
-      const pts = [];
-      const N = 240;
+      // roller coaster track (the train is a dynamic ride object)
+      const pts = plan.coaster.pts, N = pts.length;
       for (let i = 0; i < N; i++) {
-        const t = (i / N) * Math.PI * 2;
-        const rx = w * 0.42 + Math.sin(t * 3) * w * 0.05, rz = d * 0.42 + Math.cos(t * 2) * d * 0.05;
-        const h = 3 + 7 * (0.5 + 0.5 * Math.sin(t * 4 + 1)) + (t > 4.6 && t < 5.6 ? 10 * Math.sin((t - 4.6) * Math.PI) : 0);
-        pts.push([cx + Math.cos(t) * rx, h, cz + Math.sin(t) * rz]);
+        const a = pts[i], b = pts[(i + 1) % N];
+        if (!ctx.inW(a[0], a[2])) continue;
+        const dx = b[0] - a[0], dz = b[2] - a[2], L = Math.hypot(dx, dz) || 1;
+        const nx = (-dz / L) * 0.55, nz = (dx / L) * 0.55;
+        const col = [0.85, 0.1, 0.15];
+        gb.cyl(M.metal, [a[0] + nx, a[1], a[2] + nz], [b[0] + nx, b[1], b[2] + nz], 0.08, col);
+        gb.cyl(M.metal, [a[0] - nx, a[1], a[2] - nz], [b[0] - nx, b[1], b[2] - nz], 0.08, col);
+        gb.cyl(M.metal, [a[0], a[1] - 0.45, a[2]], [b[0], b[1] - 0.45, b[2]], 0.17, col);
+        if (i % 2 === 0) gb.beam(M.metal, [a[0] + nx, a[1] - 0.05, a[2] + nz], [a[0] - nx, a[1] - 0.05, a[2] - nz], 0.08, 0.12, DARK);
+        if (i % 6 === 0) { gb.cyl(M.metal, [a[0], 0, a[2]], [a[0], a[1] - 0.5, a[2]], 0.22, [0.92, 0.92, 0.95]); gb.vcyl(M.stone, a[0], 0, a[2], 0.55, 0.3, [0.75, 0.75, 0.75]); }
       }
-      const segs = [];
-      for (let i = 0; i < N; i++) segs.push(i);
-      // draw only the segments anchored in this chunk
-      const local = [];
-      for (let i = 0; i < N; i++) if (ctx.inW(pts[i][0], pts[i][2])) local.push(i);
-      if (local.length) {
-        const sub = [];
-        for (const i of local) {
-          const a = pts[i], b = pts[(i + 1) % N];
-          const dx = b[0] - a[0], dz = b[2] - a[2], L = Math.hypot(dx, dz) || 1;
-          const nx = (-dz / L) * 0.55, nz = (dx / L) * 0.55;
-          const col = [0.85, 0.1, 0.15];
-          gb.cyl(M.metal, [a[0] + nx, a[1], a[2] + nz], [b[0] + nx, b[1], b[2] + nz], 0.08, col);
-          gb.cyl(M.metal, [a[0] - nx, a[1], a[2] - nz], [b[0] - nx, b[1], b[2] - nz], 0.08, col);
-          gb.cyl(M.metal, [a[0], a[1] - 0.45, a[2]], [b[0], b[1] - 0.45, b[2]], 0.17, col);
-          if (i % 2 === 0) gb.beam(M.metal, [a[0] + nx, a[1] - 0.05, a[2] + nz], [a[0] - nx, a[1] - 0.05, a[2] - nz], 0.08, 0.12, DARK);
-          if (i % 6 === 0) { gb.cyl(M.metal, [a[0], 0, a[2]], [a[0], a[1] - 0.5, a[2]], 0.22, [0.92, 0.92, 0.95]); gb.vcyl(M.stone, a[0], 0, a[2], 0.55, 0.3, [0.75, 0.75, 0.75]); }
-          if (i >= 40 && i < 52 && i % 2 === 0) {
-            const ang = Math.atan2(dx, dz);
-            gb.push(a[0], a[1] + 0.05, a[2], ang);
-            gb.box(M.gloss, 0, 0, 0, 1.3, 0.7, 1.9, [0.95, 0.75, 0.1]);
-            gb.box(M.gloss, 0, 0.7, -0.7, 1.3, 0.45, 0.2, [0.1, 0.1, 0.12]);
-            gb.pop();
-          }
-        }
+      // Ferris wheel support frame
+      const fw = plan.wheel;
+      if (ctx.inW(fw.x, fw.z)) gb.push(fw.x, 0, fw.z, fw.rot), (() => {
+        const hub = fw.R + 2.2;
+        for (const sx of [-1.1, 1.1]) for (const sz of [-1, 1]) gb.beam(M.metal, [sx * 2.2, 0, sz * fw.R * 0.45], [sx, hub, 0], 0.4, 0.4, [0.85, 0.2, 0.2]);
+        gb.geo(M.metal, TPL.cyl, 0, hub, 0, 0.5, 2.8, 0.5, [0.4, 0.4, 0.42], 0, 0, Math.PI / 2);
+        gb.box(M.stone, 0, 0, 0, 7, 0.4, fw.R + 2, [0.8, 0.78, 0.75]);
+        gb.box(M.wood, 0, 0, fw.R * 0.3, 2.4, 0.5, 2.0, [0.6, 0.45, 0.3]);
+      })(), gb.pop();
+      // drop tower column and swing ride pole
+      const dt = plan.drop;
+      if (ctx.inW(dt.x, dt.z)) {
+        gb.vcyl(M.metal, dt.x, 0, dt.z, 1.0, dt.h, [0.85, 0.85, 0.9], TPL.cyl20);
+        for (let y = 4; y < dt.h; y += 4) gb.vcyl(M.metal, dt.x, y, dt.z, 1.1, 0.2, [0.9, 0.2, 0.2], TPL.cyl20);
+        gb.vcyl(M.gloss, dt.x, dt.h, dt.z, 1.6, 1.5, [0.9, 0.25, 0.2], TPL.cyl20);
+        gb.vcyl(M.stone, dt.x, 0, dt.z, 3.5, 0.5, [0.8, 0.8, 0.8], TPL.cyl20);
       }
-      // rides
-      const fw = [cx - w * 0.18, cz - d * 0.15];
-      if (ctx.inW(fw[0], fw[1])) P.ferrisWheel(gb, M, fw[0], fw[1], 0.4, 15, r);
-      const dt = [cx + w * 0.2, cz + d * 0.18];
-      if (ctx.inW(dt[0], dt[1])) P.dropTower(gb, M, dt[0], dt[1], 19);
-      const sw = [cx + w * 0.22, cz - d * 0.2];
-      if (ctx.inW(sw[0], sw[1])) P.swingRide(gb, M, sw[0], sw[1], r);
+      const sw = plan.swing;
+      if (ctx.inW(sw.x, sw.z)) { gb.vcyl(M.metal, sw.x, 0, sw.z, 0.7, 12, [0.9, 0.85, 0.3], TPL.cyl20); gb.vcyl(M.stone, sw.x, 0, sw.z, 2.2, 0.3, [0.8, 0.8, 0.8], TPL.cyl20); }
       gb.pop();
       return;
     }
     gb.push(0, Y, 0, 0);
-    // detail: carousel, teacups, bumper cars, stalls, trees, lamps, paths
-    const items = [
-      ['carousel', cx, cz + d * 0.05], ['teacups', cx - w * 0.22, cz + d * 0.22], ['bumper', cx + w * 0.02, cz - d * 0.26],
-    ];
-    for (const [t, x, z] of items) {
-      if (!ctx.inW(x, z)) continue;
-      if (t === 'carousel') { P.carousel(gb, M, x, z, 7, r); ctx.colliders.push(box(x - 7, Y, z - 7, x + 7, Y + 4, z + 7)); }
-      if (t === 'teacups') { P.teacups(gb, M, x, z, r); ctx.colliders.push(box(x - 7.5, Y, z - 7.5, x + 7.5, Y + 2, z + 7.5)); }
-      if (t === 'bumper') { P.bumperCars(gb, M, x, z, 20, 13, r); ctx.colliders.push(box(x - 10, Y, z - 6.5, x + 10, Y + 1, z + 6.5)); }
+    // ride bases (moving parts are dynamic), ticket booths at boarding points
+    const cs = plan.carousel;
+    if (ctx.inW(cs.x, cs.z)) { gb.vcyl(M.stone, cs.x, 0, cs.z, cs.R + 0.6, 0.12, [0.85, 0.8, 0.7], TPL.cyl20); ctx.colliders.push(box(cs.x - cs.R, Y, cs.z - cs.R, cs.x + cs.R, Y + 4, cs.z + cs.R)); }
+    const tc = plan.teacups;
+    if (ctx.inW(tc.x, tc.z)) { gb.vcyl(M.stone, tc.x, 0, tc.z, 8.4, 0.1, [0.85, 0.8, 0.85], TPL.cyl20); ctx.colliders.push(box(tc.x - 7.6, Y, tc.z - 7.6, tc.x + 7.6, Y + 2, tc.z + 7.6)); }
+    const bc = plan.bumper;
+    if (ctx.inW(bc.x, bc.z)) { P.bumperCars(gb, M, bc.x, bc.z, bc.w, bc.d, r, false); ctx.colliders.push(box(bc.x - bc.w / 2, Y, bc.z - bc.d / 2, bc.x + bc.w / 2, Y + 1, bc.z + bc.d / 2)); }
+    for (const ride of mall.rides) {
+      if (!ride.board || !ctx.inW(ride.board.x, ride.board.z) || ride.type === 'slide' || ride.type === 'lift') continue;
+      const { x, z } = ride.board;
+      gb.box(M.gloss, x, 0, z, 0.9, 1.1, 0.5, [0.95, 0.75, 0.1]);
+      gb.box(M.metal, x, 1.1, z, 0.08, 1.5, 0.08, DARK);
+      gb.box(M.neon, x, 2.4, z, 1.6, 0.5, 0.06, hsl(ride.name.length * 40, 1, 0.6));
     }
     // paths: grass lawns in a grid with pavement between
     for (let gx = x0 + 10; gx < x1 - 10; gx += 24) for (let gz = z0 + 10; gz < z1 - 10; gz += 24) {
       const lx = gx + 7, lz = gz + 7;
       if (!ctx.inW(lx, lz)) continue;
+      // keep clear of rides
+      const near = [plan.wheel, plan.drop, plan.swing, plan.carousel, plan.teacups, plan.bumper].some((q) => Math.hypot(q.x - lx, q.z - lz) < 13)
+        || plan.coaster.pts.some((q) => Math.hypot(q[0] - lx, q[2] - lz) < 10);
       const k = rngFor(room.seed, gx, gz);
+      if (near) { P.lampPost(gb, M, gx, gz, 4.5); continue; }
       if (k.chance(0.45)) {
         gb.box(M.grass, lx, 0, lz, 12, 0.08, 12, [0.9, 1, 0.9]);
         for (let i = 0; i < 3; i++) P.tree(gb, M, lx + k.range(-4, 4), lz + k.range(-4, 4), k.range(5, 8), k.range(1.6, 2.4), 0.08);
       } else if (k.chance(0.6)) {
-        P.stall(gb, M, lx, lz, k.pick([0, Math.PI / 2, Math.PI, -Math.PI / 2]), 4, hsl(k.range(0, 360), 0.8, 0.5), k);
+        const rot = k.pick([0, Math.PI / 2, Math.PI, -Math.PI / 2]);
+        P.stall(gb, M, lx, lz, rot, 4, hsl(k.range(0, 360), 0.8, 0.5), k);
         ctx.colliders.push(box(lx - 2.6, Y, lz - 2.6, lx + 2.6, Y + 2, lz + 2.6));
+        gb.push(lx, 0, lz, rot); ctx.reg('food', 0, 1.1, 0.6, 'Buy a snack', { item: k.pick(['burger', 'cotton candy', 'popcorn', 'soda']) }); gb.pop();
       } else {
-        for (let i = 0; i < 4; i++) P.bench(gb, M, lx + (i % 2 ? 3 : -3), lz + (i < 2 ? -2 : 2), i % 2 ? -Math.PI / 2 : Math.PI / 2, 2);
+        for (let i = 0; i < 4; i++) {
+          const bx = lx + (i % 2 ? 3 : -3), bz = lz + (i < 2 ? -2 : 2), rot = i % 2 ? -Math.PI / 2 : Math.PI / 2;
+          P.bench(gb, M, bx, bz, rot, 2);
+          ctx.seat(bx, 0.5, bz, rot);
+        }
         P.trashBin(gb, M, lx, lz);
+        ctx.regW('trash', lx, Y + 0.9, lz, 'Trash bin');
       }
       P.lampPost(gb, M, gx, gz, 4.5);
     }
     gb.pop();
   },
   waterpark(ctx, room) {
-    const { gb, M } = ctx;
-    const r = new RNG(room.seed);
+    const { gb, M, mall } = ctx;
+    const plan = mall.plans.waterpark;
+    if (!plan) return;
     const x0 = room.x0 * CELL, z0 = room.z0 * CELL, x1 = room.x1 * CELL, z1 = room.z1 * CELL;
-    const w = x1 - x0, d = z1 - z0, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
-    const long = w >= d;
+    const w = x1 - x0, d = z1 - z0;
     const Y = ctx.Y;
     gb.push(0, Y, 0, 0);
-    // pools
-    const pools = long ? [[cx - w * 0.2, cz, w * 0.35, d * 0.55], [cx + w * 0.25, cz + d * 0.15, w * 0.22, d * 0.3]] : [[cx, cz - d * 0.2, w * 0.55, d * 0.35], [cx + w * 0.15, cz + d * 0.25, w * 0.3, d * 0.22]];
     if (ctx.mode === 'landmark') {
-      // slide towers with long tube slides
-      const towers = long ? [[cx + w * 0.3, cz - d * 0.28], [cx + w * 0.1, cz - d * 0.32]] : [[cx - w * 0.3, cz + d * 0.3], [cx + w * 0.3, cz + d * 0.05]];
-      towers.forEach(([tx, tz], ti) => {
-        if (!ctx.inW(tx, tz)) return;
-        const h = 14 + ti * 3;
-        const [px, pz] = pools[1];
-        for (let s = 0; s < 2; s++) {
-          const pts = [];
-          for (let i = 0; i <= 40; i++) {
-            const t = i / 40;
-            const ang = t * Math.PI * (2.5 + s) + ti + s * 2;
-            const rad = 4 + t * 6;
-            const bx = tx + (px - tx) * t * t, bz = tz + (pz - tz) * t * t;
-            pts.push([bx + Math.cos(ang) * rad * (1 - t), Math.max(0.6, h * (1 - t) + 0.6), bz + Math.sin(ang) * rad * (1 - t)]);
-          }
-          P.waterSlide(gb, M, tx, tz, h, pts, s ? [0.95, 0.5, 0.1] : [0.15, 0.45, 0.95]);
-        }
-      });
+      // slide towers with long tube slides (riders are dynamic)
+      for (const sl of plan.slides) {
+        const [tx, tz] = sl.tower;
+        if (!ctx.inW(tx, tz)) continue;
+        P.waterSlide(gb, M, tx, tz, sl.h, sl.pts, sl.color);
+      }
       gb.pop();
       return;
     }
-    for (const [px, pz, pw, pd] of pools) {
-      if (!ctx.inW(px, pz)) continue;
-      gb.box(M.stone, px, 0, pz - pd / 2, pw + 1, 0.45, 0.5, [0.9, 0.88, 0.84]);
-      gb.box(M.stone, px, 0, pz + pd / 2, pw + 1, 0.45, 0.5, [0.9, 0.88, 0.84]);
-      gb.box(M.stone, px - pw / 2, 0, pz, 0.5, 0.45, pd, [0.9, 0.88, 0.84]);
-      gb.box(M.stone, px + pw / 2, 0, pz, 0.5, 0.45, pd, [0.9, 0.88, 0.84]);
-      gb.box(M.water, px, 0, pz, pw, 0.35, pd, [0.6, 0.9, 1]);
-    }
-    for (let i = 0; i < 40; i++) {
+    const nearPool = (x, z, m) => plan.pools.some((p) => x > p.x0 * CELL - m && x < p.x1 * CELL + m && z > p.z0 * CELL - m && z < p.z1 * CELL + m);
+    for (let i = 0; i < 60; i++) {
       const x = x0 + 6 + ((i * 37) % 100) / 100 * (w - 12), z = z0 + 6 + ((i * 61) % 100) / 100 * (d - 12);
-      if (!ctx.inW(x, z)) continue;
-      if (pools.some(([px, pz, pw, pd]) => Math.abs(x - px) < pw / 2 + 2 && Math.abs(z - pz) < pd / 2 + 2)) continue;
+      if (!ctx.inW(x, z) || nearPool(x, z, 2.5) || plan.towers.some(([tx, tz]) => Math.hypot(tx - x, tz - z) < 5)) continue;
       const k = rngFor(room.seed, i);
       if (i % 3 === 0) P.palm(gb, M, x, z, k.range(6, 9));
-      else if (i % 3 === 1) { P.umbrella(gb, M, x, z, hsl(k.range(0, 360), 0.8, 0.55)); P.lounger(gb, M, x + 1.2, z, 0.2); P.lounger(gb, M, x - 1.2, z, -0.2); }
-      else P.lounger(gb, M, x, z, k.range(0, 6));
+      else if (i % 3 === 1) {
+        P.umbrella(gb, M, x, z, hsl(k.range(0, 360), 0.8, 0.55));
+        P.lounger(gb, M, x + 1.2, z, 0.2); P.lounger(gb, M, x - 1.2, z, -0.2);
+        ctx.regW('bed', x + 1.2, Y + 0.4, z, 'Lie on the sun lounger', { yaw: 0.2 + Math.PI });
+      } else { const rot = k.range(0, 6); P.lounger(gb, M, x, z, rot); ctx.regW('bed', x, Y + 0.4, z, 'Lie on the sun lounger', { yaw: rot + Math.PI }); }
+    }
+    // lifeguard chairs and a towel stand
+    for (const p of plan.pools) {
+      const lx = p.x1 * CELL + 1.2, lz = ((p.z0 + p.z1) / 2) * CELL;
+      if (!ctx.inW(lx, lz)) continue;
+      for (const sx of [-0.4, 0.4]) gb.box(M.wood, lx + sx, 0, lz, 0.1, 2.0, 0.1, [0.95, 0.95, 0.95]);
+      gb.box(M.wood, lx, 2.0, lz, 0.9, 0.08, 0.8, [0.95, 0.2, 0.2]);
+      gb.box(M.fabric, lx, 2.6, lz, 1.2, 0.05, 1.2, [0.95, 0.2, 0.2]);
     }
     gb.pop();
   },
@@ -1019,9 +1068,6 @@ const ATTR = {
           const hm = (h0 + h1) / 2;
           gb.vcyl(M.metal, px, hm, pz, 0.25, 7, [0.35, 0.35, 0.38]);
           gb.box(M.metal, px, hm + 7, pz, sl.axis === 'x' ? 0.3 : 3, 0.3, sl.axis === 'x' ? 3 : 0.3, [0.35, 0.35, 0.38]);
-          const [cx2, , cz2] = P3(mid, lc - 1.2, 0);
-          gb.box(M.gloss, cx2, hm + 4.6, cz2, 1.4, 0.15, 0.7, [0.85, 0.15, 0.15]);
-          gb.box(M.metal, cx2, hm + 4.75, cz2, 0.06, 2.3, 0.06, DARK);
         }
         if (i % 3 === 0) for (const off of [2.5, 6]) {
           const [px, , pz] = P3(mid, sl.lo + off, 0);
@@ -1066,7 +1112,6 @@ const ATTR = {
       gb.vcyl(M.stone, cx, 0, cz, 7, 0.45, [0.7, 0.68, 0.62], TPL.cyl20);
       gb.geo(M.water, TPL.disc, cx, 0.4, cz, 13, 1, 13, [0.5, 0.8, 0.85]);
       for (let i = 0; i < 6; i++) gb.geo(M.foliage, TPL.disc, cx + Math.cos(i) * 4, 0.42, cz + Math.sin(i * 2) * 4, 0.8, 1, 0.8, [0.3, 0.6, 0.2]);
-      ctx.colliders.push(box(cx - 7, Y, cz - 7, cx + 7, Y + 0.9, cz + 7));
     }
     for (let i = 0; i < 70; i++) {
       const k = rngFor(room.seed, 'g', i);
@@ -1148,6 +1193,7 @@ const ATTR = {
           for (let i = 0; i < 5; i++) gb.sphere(M.gloss, mx + k.range(-3, 3), 0.8, mz + k.range(-3, 3), k.range(0.2, 0.5), hsl(k.pick([0, 20, 300, 40]), 0.8, 0.6));
           for (let i = 0; i < 14; i++) P.fish(gb, M, mx + k.range(-3.8, 3.8), k.range(1.5, 8), mz + k.range(-3.8, 3.8), k.range(0, 6.28), k.range(0.3, 1.0), hsl(k.range(0, 360), 0.9, 0.55));
           if (k.chance(0.25)) P.fish(gb, M, mx, k.range(4, 7), mz, k.range(0, 6), 3.2, [0.45, 0.5, 0.55]); // shark
+          if (k.chance(0.3)) ctx.regW('feed', mx, Y + 1.4, mz, 'Watch the fish');
         }
       }
     }
@@ -1180,6 +1226,7 @@ const ATTR = {
       gb.pop();
       return;
     }
+    for (const [x, z, rot, s, kind] of exhibits) if (ctx.inW(x, z)) ctx.regW('exhibit', x + 3, Y + 1.2, z + 3, 'Read the exhibit plaque', { text: kind === 'rex' ? 'Tyrannosaurus rex · 66 million years ago · 12 m long, bite force of 35,000 N' : 'Brachiosaurus · 150 million years ago · 22 m long, weighed as much as 6 elephants' });
     for (const [x, z, rot, s] of exhibits) if (ctx.inW(x, z)) {
       const hw = 2 * s + 0.5, hd = 5 * s + 0.5;
       ctx.colliders.push(box(x - Math.max(hw, hd), Y, z - Math.max(hw, hd), x + Math.max(hw, hd), Y + 0.7, z + Math.max(hw, hd)));
@@ -1209,7 +1256,7 @@ const ATTR = {
         }
         return;
       }
-      if (ctx.inL(f.w / 2, f.d - 7)) ctx.colL(f.w / 2 - 14, f.d - 13, f.w / 2 + 14, f.d - 1, 1.6);
+      if (ctx.inL(f.w / 2, f.d - 7)) { ctx.colL(f.w / 2 - 14, f.d - 13, f.w / 2 + 14, f.d - 1, 1.6); ctx.reg('stage', f.w / 2, 1.2, f.d - 13.5, 'Start the concert', null, -1); }
       // floor seating and tiered stands along the side walls
       for (let z = 8; z < f.d - 16; z += 1.2) if (ctx.inL(f.w / 2, z)) P.cinemaSeats(gb, M, f.w / 2, z, Math.PI, 30, [0.15, 0.2, 0.5]);
       for (const sx of [3, f.w - 3]) for (let z = 6; z < f.d - 4; z += 6) {

@@ -5,6 +5,7 @@ import { RNG, rngFor } from './rng.js';
 import { CELL, LEVEL_H, CEIL, LEVELS, E, TOP, levelY, li } from './config.js';
 import { ColliderGrid, box } from './collide.js';
 import * as C from './catalog.js';
+import { addFeatures, featureColliders } from './features.js';
 
 const SIDES = ['N', 'S', 'W', 'E'];
 
@@ -75,7 +76,7 @@ export class Mall {
       }
   }
   rampsAt(x, z) { return this.rampGrid.get(this.idx(Math.floor(x / CELL), Math.floor(z / CELL))) || null; }
-  levelOfY(y) { return Math.max(-1, Math.min(TOP, Math.floor((y + 1.0) / LEVEL_H))); }
+  levelOfY(y) { return Math.max(-1, Math.min(TOP, Math.floor((y + 2.0) / LEVEL_H))); }
 }
 
 export function rampHeight(r, x, z) {
@@ -264,7 +265,6 @@ export function generateMall(seed) {
     const fx = (cl.x0 + 2.5) * CELL, fz = (rl.z0 + 2.5) * CELL;
     mall.fountains.push({ x: fx, z: fz, r: 5 });
     for (let a = 1; a < 4; a++) for (let b = 1; b < 4; b++) mall.reserved[li(0)].add(mall.idx(cl.x0 + a, rl.z0 + b));
-    mall.static.add(box(fx - 4.6, 0, fz - 4.6, fx + 4.6, 0.9, fz + 4.6));
     mall.static.add(box(fx - 1.2, 0, fz - 1.2, fx + 1.2, 4, fz + 1.2));
     mall.labels.push({ level: 1, x: fx, z: fz, text: 'Atrium', kind: 'atrium' });
   }
@@ -767,6 +767,8 @@ export function generateMall(seed) {
   for (const cl of colLanes) mall.labels.push({ level: 8, axis: 'z', lane: cl, text: cl.name, kind: 'lane' });
   for (const rl of rowLanes) mall.labels.push({ level: 8, axis: 'x', lane: rl, text: rl.name, kind: 'lane' });
 
+  addFeatures(mall);
+  featureColliders(mall);
   computeEdges(mall);
   // spawn: centre-most main x main intersection, else centre lane
   {

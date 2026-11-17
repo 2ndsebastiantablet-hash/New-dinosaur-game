@@ -49,6 +49,12 @@ export class GB {
     const [x, y, z, r] = this.stack.pop();
     this.x = x; this.y = y; this.z = z; this.rot = r; this.c = Math.cos(r); this.s = Math.sin(r);
   }
+  // register an interactable at a local point (no-op unless a decorator installed onReg)
+  reg(kind, lx, ly, lz, label, data, face = 1) {
+    if (!this.onReg) return;
+    const p = this.tp(lx, ly, lz), f = this.tn(0, 0, face);
+    this.onReg({ kind, x: p[0], y: p[1], z: p[2], label, data: data || null, yaw: Math.atan2(-f[0], -f[2]) });
+  }
   tp(lx, ly, lz) { return [this.x + lx * this.c + lz * this.s, this.y + ly, this.z - lx * this.s + lz * this.c]; }
   tn(nx, ny, nz) { return [nx * this.c + nz * this.s, ny, -nx * this.s + nz * this.c]; }
 

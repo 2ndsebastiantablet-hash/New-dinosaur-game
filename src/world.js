@@ -7,6 +7,7 @@ import { buildDetail } from './decor.js';
 import { disposeGroup } from './builder.js';
 import { ColliderGrid, box } from './collide.js';
 import { rampHeight } from './layout.js';
+import { POOL_BOTTOM, zonesAt, inZone } from './features.js';
 
 export class World {
   constructor(mall, mats, scene) {
@@ -33,6 +34,7 @@ export class World {
       if (any) this.nonEmpty.add(`${l}:${cx}:${cz}`);
     }
     this.stats = { chunks: 0, verts: 0 };
+    this.hooks = { load: null, unload: null };
   }
   dispose() {
     for (const k of [...this.loaded.keys()]) this.unload(k);
@@ -82,6 +84,7 @@ export class World {
     if (!c) return;
     if (c.group) { c.group.parent && c.group.parent.remove(c.group); disposeGroup(c.group); }
     if (c.colliders && c.colliders.length) this.dyn.removeOwner(k, c.colliders);
+    if (c.inter && this.hooks.unload) this.hooks.unload(k, c);
     this.stats.verts -= c.verts || 0;
     this.loaded.delete(k);
   }
@@ -99,19 +102,36 @@ export class World {
     return this.queue.length;
   }
   buildJob(job) {
-    let group, colliders = [];
+    let group, colliders = [], inter = null;
     if (job.part === 's') group = buildStructure(this.S, job.l, job.cx, job.cz);
     else {
       const res = buildDetail(this.S, job.l, job.cx, job.cz);
-      group = res.group; colliders = res.colliders;
-      for (const b of colliders) this.dyn.add(b, job.k);
+      group = res.group; colliders = res.colliders; inter = res.inter;
     }
     group.name = job.k;
     this.levelGroups[job.l].add(group);
     group.updateMatrixWorld(true);
     const verts = group.userData.verts || 0;
     this.stats.verts += verts;
-    this.loaded.set(job.k, { group, colliders, l: job.l, cx: job.cx, cz: job.cz, part: job.part, verts });
+    const rec = { group, colliders, inter, l: job.l, cx: job.cx, cz: job.cz, part: job.part, verts };
+    this.loaded.set(job.k, rec);
+    if (inter && this.hooks.load) this.hooks.load(job.k, rec); // may append colliders (doors)
+    for (const b of colliders) this.dyn.add(b, job.k);
+  }
+  interNear(x, z, l, out) {
+    out.length = 0;
+    const pcx = Math.floor(x / (CHUNK * CELL)), pcz = Math.floor(z / (CHUNK * CELL));
+    for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) for (const ll of [l - 1, l, l + 1]) {
+      const c = this.loaded.get(`d:${ll}:${pcx + dx}:${pcz + dz}`);
+      if (c && c.inter) for (const it of c.inter) out.push(it);
+    }
+    return out;
+  }
+  zoneAt(x, y, z, type) {
+    const zs = zonesAt(this.mall, x, z);
+    if (!zs) return null;
+    for (const zn of zs) if ((!type || zn.type === type) && y >= zn.y0 - 0.5 && y <= zn.y1 + 0.8 && inZone(zn, x, z)) return zn;
+    return null;
   }
   // ------------------------------------------------------------------ collision
   collect(x0, z0, x1, z1, y0, y1, out) {
@@ -137,7 +157,7 @@ export class World {
     if (t === E.NONE || t === E.ENTRANCE || t === E.NORAIL) return;
     const Y = levelY(l), th = 0.2;
     const top = t === E.RAIL ? Y + 2.2 : Y + LEVEL_H;
-    const segs = t === E.DOOR ? [[0, 1.3], [2.7, CELL]] : t === E.OPEN ? [[0, 0.4], [3.6, CELL]] : [[0, CELL]];
+    const segs = t === E.DOOR ? [[0, 1.3], [2.7, CELL]] : t === E.OPEN ? [[0, 0.4], [3.6, CELL]] : t === E.MAIN_ENTRANCE ? [[0, 0.25], [CELL - 0.25, CELL]] : [[0, CELL]];
     for (const [a, b] of segs) {
       if (o === 'v') out.push({ x0: x * CELL - th, x1: x * CELL + th, z0: z * CELL + a, z1: z * CELL + b, y0: Y, y1: top });
       else out.push({ x0: x * CELL + a, x1: x * CELL + b, z0: z * CELL - th, z1: z * CELL + th, y0: Y, y1: top });
@@ -147,10 +167,17 @@ export class World {
     const mall = this.mall;
     const cx = Math.floor(x / CELL), cz = Math.floor(z / CELL);
     let best = -Infinity, ramp = null;
+    let anyRoom = false;
     for (const l of LEVELS) {
-      const y = levelY(l);
+      if (mall.roomId(l, cx, cz) >= 0) anyRoom = true;
+      const y = l === 0 && mall.poolCells.has(mall.idx(cx, cz)) ? POOL_BOTTOM : levelY(l);
       if (y <= feetY + step && y > best && mall.hasFloor(l, cx, cz)) best = y;
     }
+    // outdoor plaza / parking lot around the building
+    if (!anyRoom && best === -Infinity && feetY > -2) best = 0;
+    // raised walkable surfaces (trampolines)
+    const zs = zonesAt(mall, x, z);
+    if (zs) for (const zn of zs) if (zn.type === 'tramp' && zn.y1 <= feetY + step && zn.y1 > best && inZone(zn, x, z)) { best = zn.y1; ramp = null; this._tramp = zn; }
     const rs = mall.rampsAt(x, z);
     if (rs) for (const r of rs) {
       if (x < r.x0 || x > r.x1 || z < r.z0 || z > r.z1) continue;
@@ -159,14 +186,22 @@ export class World {
     }
     return { y: best, ramp };
   }
+  surfaceZone(x, z, y) {
+    const zs = zonesAt(this.mall, x, z);
+    if (zs) for (const zn of zs) if (zn.type === 'tramp' && Math.abs(zn.y1 - y) < 0.02 && inZone(zn, x, z)) return zn;
+    return null;
+  }
   ceilingAt(x, z, headY) {
     // lowest slab underside above headY
     const mall = this.mall;
     const cx = Math.floor(x / CELL), cz = Math.floor(z / CELL);
     for (const l of LEVELS) {
       const under = levelY(l) - 0.45;
-      if (under >= headY - 0.3 && mall.hasFloor(l, cx, cz)) return under;
+      if (under >= headY - 0.3 && mall.hasFloor(l, cx, cz) && !(l === 0 && mall.poolCells.has(mall.idx(cx, cz)))) return under;
     }
+    // the roof over the top level (except under skylights)
+    const roof = levelY(TOP) + 6.55;
+    if (headY < roof + 0.3 && headY > levelY(TOP) && mall.hasFloor(TOP, cx, cz)) return roof;
     return Infinity;
   }
 }

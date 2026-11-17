@@ -7,6 +7,7 @@ import { rngFor, RNG } from './rng.js';
 import { drawSign } from './textures.js';
 import * as C from './catalog.js';
 import { buildLandmarks } from './decor.js';
+import { POOL_BOTTOM, POOL_SURFACE } from './features.js';
 
 const W1 = [1, 1, 1];
 const mul = (c, k) => [c[0] * k, c[1] * k, c[2] * k];
@@ -101,12 +102,48 @@ export function buildStructure(S, l, ccx, ccz) {
     let x = X0;
     while (x < X1) {
       const id = mall.roomId(l, x, z);
-      if (id < 0 || mall.isVoid(l, x, z)) { x++; continue; }
+      const pool = (xx) => l === 0 && mall.poolCells.has(mall.idx(xx, z));
+      if (id < 0 || mall.isVoid(l, x, z) || pool(x)) { x++; continue; }
       let x2 = x + 1;
-      while (x2 < X1 && mall.roomId(l, x2, z) === id && !mall.isVoid(l, x2, z)) x2++;
+      while (x2 < X1 && mall.roomId(l, x2, z) === id && !mall.isVoid(l, x2, z) && !pool(x2)) x2++;
       const fs = floorStyle(mall.rooms[id]);
       gb.floor(M(fs.mat), x * CELL, z * CELL, x2 * CELL, (z + 1) * CELL, Y, fs.col);
       x = x2;
+    }
+  }
+
+  // ---- outdoor asphalt for cells outside the building footprint (ground level)
+  if (l === 0) for (let z = Z0; z < Z1; z++) for (let x = X0; x < X1; x++) {
+    if (mall.roomId(0, x, z) >= 0 || mall.roomId(-1, x, z) >= 0 || mall.roomId(1, x, z) >= 0) continue;
+    gb.floor(mats.garage, x * CELL, z * CELL, (x + 1) * CELL, (z + 1) * CELL, -0.12, [0.62, 0.62, 0.6]);
+  }
+  // ---- recessed swimming pools (ground floor)
+  if (l === 0) for (let z = Z0; z < Z1; z++) for (let x = X0; x < X1; x++) {
+    if (!mall.poolCells.has(mall.idx(x, z))) continue;
+    const wx = x * CELL, wz = z * CELL;
+    const tileC = [0.95, 1, 1];
+    gb.floor(mats.poolTile, wx, wz, wx + CELL, wz + CELL, POOL_BOTTOM, tileC);
+    gb.floor(mats.water, wx, wz, wx + CELL, wz + CELL, POOL_SURFACE, [0.75, 0.95, 1]);
+    const isP = (xx, zz) => mall.poolCells.has(mall.idx(xx, zz));
+    const cope = [0.93, 0.92, 0.88];
+    if (!isP(x - 1, z)) { gb.wallX(mats.poolTile, wz, wz + CELL, wx, POOL_BOTTOM, 0, 1, tileC); gb.boxA(mats.stone, wx - 0.4, 0, wz, wx, 0.06, wz + CELL, cope); }
+    if (!isP(x + 1, z)) { gb.wallX(mats.poolTile, wz, wz + CELL, wx + CELL, POOL_BOTTOM, 0, -1, tileC); gb.boxA(mats.stone, wx + CELL, 0, wz, wx + CELL + 0.4, 0.06, wz + CELL, cope); }
+    if (!isP(x, z - 1)) { gb.wallZ(mats.poolTile, wx, wx + CELL, wz, POOL_BOTTOM, 0, 1, tileC); gb.boxA(mats.stone, wx, 0, wz - 0.4, wx + CELL, 0.06, wz, cope); }
+    if (!isP(x, z + 1)) { gb.wallZ(mats.poolTile, wx, wx + CELL, wz + CELL, POOL_BOTTOM, 0, -1, tileC); gb.boxA(mats.stone, wx, 0, wz + CELL, wx + CELL, 0.06, wz + CELL + 0.4, cope); }
+  }
+  if (l === 0) for (const p of mall.pools) {
+    // pool steps (matching the walkable ramp)
+    const st = p.steps;
+    const sx = st.axis === 'x' ? st.x : (st.x0 + st.x1) / 2, sz = st.axis === 'x' ? (st.z0 + st.z1) / 2 : st.z;
+    if (!(sx >= X0 * CELL && sx < X1 * CELL + 0.01 && sz >= Z0 * CELL && sz < Z1 * CELL + 0.01)) continue;
+    for (let i = 0; i < 8; i++) {
+      const y = -(i + 1) * (-POOL_BOTTOM / 8);
+      if (st.axis === 'x') gb.boxA(mats.stone, st.x + i * 0.5, POOL_BOTTOM, st.z0 + 0.2, st.x + (i + 1) * 0.5, y + 0.02 + (-POOL_BOTTOM / 8) * 0, st.z1 - 0.2, [0.9, 0.9, 0.88]);
+      else gb.boxA(mats.stone, st.x0 + 0.2, POOL_BOTTOM, st.z + i * 0.5, st.x1 - 0.2, y + 0.02, st.z + (i + 1) * 0.5, [0.9, 0.9, 0.88]);
+    }
+    for (const off of [0.25, CELL - 0.25]) {
+      if (st.axis === 'x') gb.beam(mats.chrome, [st.x - 0.3, 1.0, st.z0 + off], [st.x + 3.8, -0.8, st.z0 + off], 0.05, 0.05, [0.9, 0.9, 0.92]);
+      else gb.beam(mats.chrome, [st.x0 + off, 1.0, st.z - 0.3], [st.x0 + off, -0.8, st.z + 3.8], 0.05, 0.05, [0.9, 0.9, 0.92]);
     }
   }
 
@@ -210,10 +247,12 @@ export function buildStructure(S, l, ccx, ccz) {
         gb.boxA(mats.metal, 1.22, 0, -T - 0.03, 1.3, 2.38, T + 0.03, fc);
         gb.boxA(mats.metal, 2.7, 0, -T - 0.03, 2.78, 2.38, T + 0.03, fc);
         gb.boxA(mats.metal, 1.22, 2.3, -T - 0.03, 2.78, 2.38, T + 0.03, fc);
-        // open door leaf swung into side B (or A if B missing)
-        const sgn = rb ? 1 : -1;
-        const leafCol = ra && rb && (ra.kind === 'concourse' || rb.kind === 'concourse') ? [0.55, 0.57, 0.6] : [0.5, 0.52, 0.55];
-        gb.boxA(mats.plastic, 1.32, 0.02, sgn * T, 1.37, 2.26, sgn * (T + 1.3), leafCol);
+        // (the door leaf itself is a dynamic, openable object: see interact.js) + door push-buttons
+        for (const sd of [-1, 1]) {
+          if (sd < 0 ? !ra : !rb) continue;
+          gb.boxA(mats.metal, 2.95, 1.05, sd * (T + 0.005), 3.15, 1.35, sd * (T + 0.04), [0.75, 0.75, 0.78]);
+          gb.boxA(mats.neon, 3.0, 1.15, sd * (T + 0.04), 3.1, 1.25, sd * (T + 0.06), [0.2, 1.3, 0.3]);
+        }
         // little sign on concourse side
         if (ra && ra.kind === 'concourse' || rb && rb.kind === 'concourse') {
           const s = ra && ra.kind === 'concourse' ? -1 : 1;
@@ -264,16 +303,17 @@ export function buildStructure(S, l, ccx, ccz) {
           faces(0, CELL, g1, top, ra ? null : fac, ra ? fac : null);
           if (type === E.WINDOW) faces(0, CELL, 0, g0, ra ? null : fac, ra ? fac : null);
         }
-        gb.quad(mats.glass, [[0, g0, 0], [CELL, g0, 0], [CELL, g1, 0], [0, g1, 0]], [0, 0, 1], [0.85, 1, 1], [[0, 0], [1, 0], [1, 1], [0, 1]]);
+        const gq = (a, b, y0, y1) => gb.quad(mats.glass, [[a, y0, 0], [b, y0, 0], [b, y1, 0], [a, y1, 0]], [0, 0, 1], [0.85, 1, 1], [[0, 0], [1, 0], [1, 1], [0, 1]]);
         const mc = [0.22, 0.23, 0.25];
-        for (const mx of [0.05, CELL / 2, CELL - 0.05]) gb.boxA(mats.metal, mx - 0.05, g0, -0.09, mx + 0.05, g1, 0.09, mc);
+        if (type === E.MAIN_ENTRANCE) { gq(0, CELL, 2.6, g1); gq(0, 0.25, 0, 2.6); gq(CELL - 0.25, CELL, 0, 2.6); }
+        else gq(0, CELL, g0, g1);
+        for (const mx of [0.05, CELL - 0.05]) gb.boxA(mats.metal, mx - 0.05, g0, -0.09, mx + 0.05, g1, 0.09, mc);
+        gb.boxA(mats.metal, CELL / 2 - 0.05, type === E.MAIN_ENTRANCE ? 2.6 : g0, -0.09, CELL / 2 + 0.05, g1, 0.09, mc);
         for (const my of type === E.MAIN_ENTRANCE ? [2.6, 4.6] : [g0 + 0.05, 3.2]) gb.boxA(mats.metal, 0, my - 0.05, -0.09, CELL, my + 0.05, 0.09, mc);
         if (type === E.MAIN_ENTRANCE) {
-          // door frames + push bars
-          for (const dx of [0.25, 2.1]) {
-            gb.boxA(mats.metal, dx, 0, -0.06, dx + 1.65, 0.12, 0.06, mc);
-            gb.boxA(mats.chrome, dx + 0.2, 1.0, sIn * 0.1, dx + 1.45, 1.06, sIn * 0.14, [0.9, 0.9, 0.9]);
-          }
+          // sliding-door track + motion sensor (the door panels are dynamic, see interact.js)
+          gb.boxA(mats.metal, 0.25, 2.45, -0.14, CELL - 0.25, 2.6, 0.14, mc);
+          gb.boxA(mats.neon, CELL / 2 - 0.1, 2.38, sIn * 0.16, CELL / 2 + 0.1, 2.44, sIn * 0.2, [0.2, 1.2, 0.3]);
           // entrance mat inside
           gb.boxA(mats.carpet, 0.2, 0, sIn * 0.3, CELL - 0.2, 0.02, sIn * 3.0, [0.2, 0.2, 0.22]);
           // canopy outside

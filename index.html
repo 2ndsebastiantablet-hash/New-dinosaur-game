@@ -35,7 +35,7 @@
       </div>
       <div class="controls">
         <span><kbd>WASD</kbd> walk</span><span><kbd>Shift</kbd> run</span><span><kbd>Space</kbd> jump</span>
-        <span><kbd>C</kbd> crouch</span><span><kbd>M</kbd> map / fast-travel</span><span><kbd>E</kbd> elevator</span>
+        <span><kbd>C</kbd> crouch / dive</span><span><kbd>E</kbd> interact · ride · sit</span><span><kbd>Click</kbd> throw held item</span><span><kbd>M</kbd> map / fast-travel</span><span><kbd>N</kbd> music</span>
         <span><kbd>F</kbd> flashlight</span><span><kbd>G</kbd> drone mode</span><span><kbd>[ ]</kbd> view distance</span><span><kbd>H</kbd> help</span>
       </div>
       <button id="enter" class="big">Enter the Mall</button>
@@ -57,13 +57,15 @@
     </div>
     <div id="minimap-wrap"><canvas id="minimap" width="190" height="190"></canvas><div id="compass"></div></div>
     <div id="crosshair"></div>
-    <div id="prompt"><kbd>E</kbd> Call glass elevator</div>
+    <div id="prompt"></div>
+    <div id="ridehud"></div>
     <div id="flash"></div>
     <div id="perf"></div>
     <div id="help">
       <b>Exploring MEGAMALL</b>
       <p>Boulevards run between city-block sized wings of shops. Main boulevards are open to the skylights with bridges and escalators. Look for <i>STAFF ONLY</i> doors — they lead into service corridors behind the shops, back rooms, and stairwells down to the basement tunnels and parking.</p>
-      <p><kbd>M</kbd> map (click to fast-travel, scroll to zoom) · <kbd>G</kbd> drone mode · <kbd>F</kbd> flashlight · <kbd>P</kbd> stats · <kbd>B</kbd> bloom</p>
+      <p>Almost everything is interactive: look at it and press <kbd>E</kbd>. Open doors, ride the coaster, Ferris wheel, carousel, drop tower, swings, teacups, bumper cars, water slides and chairlift. Bowl, putt, play the arcade, buy snacks and drinks, sit, swim, skate, bounce and ski.</p>
+      <p><kbd>Click</kbd> throw · <kbd>Q</kbd> drop · <kbd>M</kbd> map · <kbd>G</kbd> drone · <kbd>F</kbd> flashlight · <kbd>N</kbd> music · <kbd>K</kbd> mute · <kbd>P</kbd> stats · <kbd>B</kbd> bloom</p>
     </div>
   </div>
 
@@ -93,6 +95,16 @@
       <button class="tbtn big" id="t-jump">▲</button>
     </div>
   </div>
+  <div id="arcade" class="overlay" style="display:none">
+    <div class="arcade-cab">
+      <div class="arcade-title">NEON DODGE</div>
+      <canvas id="arcade-canvas" width="480" height="360"></canvas>
+      <div class="arcade-help">A / D or ← → (tap left / right on touch) · dodge the blocks, grab the stars</div>
+      <button id="arcade-close">Leave the cabinet</button>
+    </div>
+  </div>
+  <div id="underwater"></div>
+  <div id="alarm"></div>
   <div id="fade"></div>
   <script type="module" src="./src/main.js"></script>
 </body>
