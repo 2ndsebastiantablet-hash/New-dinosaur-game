@@ -56,7 +56,7 @@ npm run dev        # open the printed URL
 npm run build      # static build in dist/
 ```
 
-Pick a seed on the start screen, or use `?seed=12345` in the URL.
+Pick a seed on the start screen, or open the page with `#seed-12345` (or `?seed=12345`) in the URL to share a specific mall.
 
 ## Controls
 

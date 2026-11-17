@@ -14,7 +14,8 @@ import { STORE_CATS } from './catalog.js';
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
-let seed = parseInt(params.get('seed'), 10);
+const hashSeed = /^#seed-(\d+)$/.exec(location.hash);
+let seed = hashSeed ? parseInt(hashSeed[1], 10) : parseInt(params.get('seed'), 10);
 if (!Number.isFinite(seed)) seed = Math.floor(Math.random() * 1e6);
 
 const nextFrame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
@@ -104,7 +105,7 @@ async function boot() {
 
 async function buildMall(newSeed) {
   seed = newSeed;
-  try { history.replaceState(null, '', `?seed=${seed}`); } catch (e) { /* sandboxed */ }
+  try { history.replaceState(null, '', `#seed-${seed}`); } catch (e) { /* sandboxed */ }
   $('loading').style.display = 'flex';
   setLoading(`Generating mall #${seed} — floor plan…`);
   await nextFrame();

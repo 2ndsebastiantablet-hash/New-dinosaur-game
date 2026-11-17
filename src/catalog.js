@@ -58,7 +58,7 @@ export const MULTI_ATTRACTIONS = [
   { type: 'themepark', name: 'Galaxy Adventure Park', bw: 2, bd: 2, height: 3, count: 1, floor: 'pavement' },
   { type: 'waterpark', name: 'Tidal Wave Waterpark', bw: 2, bd: 1, height: 3, count: 1, floor: 'poolTile' },
   { type: 'skislope', name: 'Polar Peak Snow Dome', bw: 2, bd: 1, height: 3, count: 1, floor: 'snow', chance: 0.85 },
-  { type: 'garden', name: 'Evergreen Botanical Atrium', bw: 1, bd: 1, height: 3, count: 2, floor: 'grass' },
+  { type: 'garden', name: 'Evergreen Botanical Atrium', names: ['Evergreen Botanical Atrium', 'Lotus Sky Garden'], bw: 1, bd: 1, height: 3, count: 2, floor: 'grass' },
   { type: 'icerink', name: 'Glacier Ice Arena', bw: 1, bd: 1, height: 2, count: 1, floor: 'rubber' },
   { type: 'aquarium', name: 'Deep Blue Aquarium', bw: 1, bd: 1, height: 2, count: 1, floor: 'darkTile' },
   { type: 'museum', name: 'Dino Discovery Hall', bw: 1, bd: 1, height: 2, count: 1, floor: 'marble' },
@@ -69,7 +69,7 @@ export const MULTI_ATTRACTIONS = [
 export const BLOCK_VENUES = [
   { type: 'bowling', name: 'Strike Zone Bowling', levels: [1], count: 1, floor: 'carpet' },
   { type: 'cinema', name: 'MegaPlex Cinemas 20', levels: [2], count: 1, floor: 'carpet' },
-  { type: 'foodcourt', name: 'Grand Food Court', levels: [2, 1], count: 2, floor: 'tile' },
+  { type: 'foodcourt', name: 'Grand Food Court', names: ['Sky Terrace Food Court', 'Grand Food Court'], levels: [2, 1], count: 2, floor: 'tile' },
   { type: 'arcade', name: 'Pixel Palace Arcade', levels: [1, 2], count: 1, floor: 'neonCarpet' },
   { type: 'trampoline', name: 'Bounce Universe', levels: [2], count: 1, floor: 'rubber' },
   { type: 'minigolf', name: 'Glow Putt Mini Golf', levels: [2], count: 1, floor: 'darkTile' },

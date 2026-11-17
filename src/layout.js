@@ -168,7 +168,7 @@ export function generateMall(seed) {
       if (!cands.length) break;
       cands.sort((a, b) => b.score - a.score);
       const { i, j } = cands[0];
-      const g = { ...def, i0: i, j0: j, i1: i + def.bw - 1, j1: j + def.bd - 1, base: 0 };
+      const g = { ...def, name: def.names ? def.names[c % def.names.length] : def.name, i0: i, j0: j, i1: i + def.bw - 1, j1: j + def.bd - 1, base: 0 };
       g.x0 = bx0[g.i0]; g.x1 = bx1[g.i1]; g.z0 = bz0[g.j0]; g.z1 = bz1[g.j1];
       g.idx = mall.groups.length;
       mall.groups.push(g);
@@ -210,7 +210,7 @@ export function generateMall(seed) {
       }
       if (!cands.length) continue;
       const b = rng.pick(cands);
-      b.venue[l] = { ...def, level: l };
+      b.venue[l] = { ...def, name: def.names ? def.names[c % def.names.length] : def.name, level: l };
     }
   }
   // ---- districts per level

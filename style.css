@@ -17,7 +17,8 @@ h3 { margin: 6px 0 10px; font-size: 13px; text-transform: uppercase; letter-spac
 .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; }
 .stats div { display: flex; justify-content: space-between; border-bottom: 1px dashed rgba(255, 255, 255, 0.1); padding: 3px 0; font-size: 14px; gap: 8px; }
 .stats span { opacity: 0.7; }
-.attr { margin: 0; padding-left: 18px; columns: 1; font-size: 14px; line-height: 1.6; }
+.attr { margin: 0; padding-left: 18px; columns: 2; column-gap: 22px; font-size: 13px; line-height: 1.55; }
+@media (max-width: 700px) { .attr { columns: 1; } }
 .attr i { opacity: 0.55; font-style: normal; font-size: 12px; }
 .seedrow { display: flex; gap: 8px; margin-top: 14px; align-items: center; flex-wrap: wrap; }
 .seedrow input { width: 110px; background: #1a1e27; color: var(--ink); border: 1px solid #3a4150; border-radius: 6px; padding: 6px 8px; }
